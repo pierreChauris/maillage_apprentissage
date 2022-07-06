@@ -140,12 +140,12 @@ data_uni = f(X_uni,Y_uni)
 
 
 # scale and fit
-mlp_reg = MLPRegressor(hidden_layer_sizes=(1500),
+mlp_reg = MLPRegressor(hidden_layer_sizes=(20,100),
                        max_iter = 500,activation = 'relu',
                        solver = 'adam')
 sc=StandardScaler()
 scaler = sc.fit(grid_uni)
-grid_uni = scaler.transform(grid_uni)
+#grid_uni = scaler.transform(grid_uni)
 
 mlp_reg.fit(grid_uni,data_uni)
 
@@ -156,7 +156,7 @@ X_pred,Y_pred = np.meshgrid(x_pred,x_pred)
 X_pred = X_pred.reshape(Npred*Npred)
 Y_pred = Y_pred.reshape(Npred*Npred)
 grid_pred = np.stack((X_pred,Y_pred),-1)
-grid_pred = scaler.transform(grid_pred)
+#grid_pred = scaler.transform(grid_pred)
 z_exact = f(X_pred,Y_pred)
 
 z_pred = mlp_reg.predict(grid_pred)
@@ -169,12 +169,12 @@ grid_nu = np.stack((X_nu,Y_nu),-1)
 data_nu = f(X_nu,Y_nu)
 
 # scale and fit
-mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(1500),
+mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(20,100),
                        max_iter = 500,activation = 'relu',
                        solver = 'adam')
 sc=StandardScaler()
 scaler = sc.fit(grid_nu)
-grid_nu = scaler.transform(grid_nu)
+#grid_nu = scaler.transform(grid_nu)
 
 mlp_reg_nu.fit(grid_nu,data_nu)
 
@@ -258,8 +258,4 @@ plt.figure()
 plt.scatter(X_nu,Y_nu,c = grad,s = 1,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
-#%% sol exacte
-plt.figure()
-plt.scatter(X_pred,Y_pred,c=f(X_pred,Y_pred),cmap = colmap)
-plt.axis('square')
-plt.colorbar()
+
