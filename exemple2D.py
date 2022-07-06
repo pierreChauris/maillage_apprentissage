@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from findiff import FinDiff
 
 # test pour le git
+# test avec le git bash fermé
 
 def T_direct(x1,x2):
     s = x1**2+x2**2+1
