@@ -12,6 +12,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPRegressor
 
 from findiff import FinDiff
+import time
 #%% def classe et fonctions
 
 class Cell:
@@ -118,18 +119,28 @@ def iterate_grid(grid,alpha):
     return new_grid
 
 #%% raffinement
-N = 15
+N = 11
 L = 10
 x10,x20 = 0,0
 
 grid = init_grid(N)
-niter = 2
+niter = 3
+X,Y = cen(grid)
+plt.figure()
+plt.scatter(X,Y,c = f(X,Y),s = 1,cmap = 'jet')
+plt.axis('square')
+plt.colorbar()
 
 for _ in range(niter):
     alpha = auto_threshold(grid)
     grid = iterate_grid(grid,alpha)
+    X,Y = cen(grid)
+    plt.figure()
+    plt.scatter(X,Y,c = f(X,Y),s = 1,cmap = 'jet')
+    plt.axis('square')
+    plt.colorbar()
 
-#%% apprentissage sur grille uniforme
+#%% génération grille uniforme
 
 N_uni = int(np.sqrt(len(grid)))
 x_uni = np.linspace(0,L,N_uni)
@@ -139,6 +150,24 @@ Y_uni = Y_uni.reshape(N_uni*N_uni)
 grid_uni = np.stack((X_uni,Y_uni),-1)
 data_uni = f(X_uni,Y_uni)
 
+#%% generation grille non uniforme
+
+X_nu,Y_nu = cen(grid)
+grid_nu = np.stack((X_nu,Y_nu),-1)
+data_nu = f(X_nu,Y_nu)
+
+#%% grille de test
+
+Npred = 80
+x_pred = np.linspace(0,L,Npred)
+X_pred,Y_pred = np.meshgrid(x_pred,x_pred)
+X_pred = X_pred.reshape(Npred*Npred)
+Y_pred = Y_pred.reshape(Npred*Npred)
+grid_pred = np.stack((X_pred,Y_pred),-1)
+#grid_pred = scaler.transform(grid_pred)
+z_exact = f(X_pred,Y_pred)
+
+#%% entrainement et estimation sur grille uniforme
 
 # scale and fit
 mlp_reg = MLPRegressor(hidden_layer_sizes=(200,200,100),
@@ -150,24 +179,11 @@ scaler = sc.fit(grid_uni)
 
 mlp_reg.fit(grid_uni,data_uni)
 
-# predict over uniform grid
-Npred = 80
-x_pred = np.linspace(0,L,Npred)
-X_pred,Y_pred = np.meshgrid(x_pred,x_pred)
-X_pred = X_pred.reshape(Npred*Npred)
-Y_pred = Y_pred.reshape(Npred*Npred)
-grid_pred = np.stack((X_pred,Y_pred),-1)
-#grid_pred = scaler.transform(grid_pred)
-z_exact = f(X_pred,Y_pred)
-
 z_pred = mlp_reg.predict(grid_pred)
 err_pred = np.abs(z_exact-z_pred)
 print('erreur uniforme :',np.linalg.norm(err_pred))
-#%% apprentissage sur grille non uniforme
 
-X_nu,Y_nu = cen(grid)
-grid_nu = np.stack((X_nu,Y_nu),-1)
-data_nu = f(X_nu,Y_nu)
+#%% entrainement et estimation sur grille non uniforme
 
 # scale and fit
 mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(200,200,100),
@@ -249,12 +265,15 @@ cb_ax = fig.add_axes([0.6, 0.126, 0.01, 0.22])
 cbar = fig.colorbar(im, cax=cb_ax)
 ax3.set_title('solution exacte')
 ax3.axis('square')
-#%% gradient 1
+#%% gradient empirique
 grad = []
-
+start = time.time()
 for cell in grid:
     gx,gy = emp_grad(cell)
     grad.append(np.sqrt(gx**2 + gy**2))
+end = time.time()
+time_emp_grad = end-start
+print('temps calcul à la main :',time_emp_grad)
 plt.figure()
 plt.scatter(X_nu,Y_nu,c = grad,s = 1,cmap = 'jet')
 plt.axis('square')
@@ -262,13 +281,79 @@ plt.colorbar()
 
 #%% gradient avec Findiff
 Z = f(X_uni,Y_uni).reshape(N_uni,N_uni)
+start = time.time()
 d_dx1 = FinDiff(0,1)
 d_dx2 = FinDiff(1,1)
 dZ_dx1 = d_dx1(Z)
 dZ_dx2 = d_dx2(Z)
-grad = np.sqrt(dZ_dx1**2+dZ_dx2**2)
-
+gr = np.sqrt(dZ_dx1**2+dZ_dx2**2)
+end = time.time()
+time_findiff = end-start
+print('temps calcul findiff :',time_findiff)
 plt.figure()
-plt.scatter(X_uni,Y_uni,c = grad,s = 1,cmap = 'jet')
+plt.scatter(X_uni,Y_uni,c = gr,s = 1,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
+
+#%% erreur en fonction de la taille de la grille
+
+# N_liste = np.arange(8,45)
+# res_uni,res_nu,grid_len = [],[],[]
+# for N in N_liste:
+#     print(N)
+#     grid = init_grid(N)
+#     for _ in range(2):
+#         alpha = auto_threshold(grid)
+#         grid = iterate_grid(grid,alpha)
+#     grid_len.append(len(grid))
+#     # dataset non uniforme
+#     X_nu,Y_nu = cen(grid)
+#     grid_nu = np.stack((X_nu,Y_nu),-1)
+#     data_nu = f(X_nu,Y_nu)
+#     # dataset uniforme
+#     N_uni = int(np.sqrt(len(grid)))
+#     x_uni = np.linspace(0,L,N_uni)
+#     X_uni,Y_uni = np.meshgrid(x_uni,x_uni)
+#     X_uni = X_uni.reshape(N_uni*N_uni)
+#     Y_uni = Y_uni.reshape(N_uni*N_uni)
+#     grid_uni = np.stack((X_uni,Y_uni),-1)
+#     data_uni = f(X_uni,Y_uni)
+#     # grille de test
+#     Npred = 80
+#     x_pred = np.linspace(0,L,Npred)
+#     X_pred,Y_pred = np.meshgrid(x_pred,x_pred)
+#     X_pred = X_pred.reshape(Npred*Npred)
+#     Y_pred = Y_pred.reshape(Npred*Npred)
+#     grid_pred = np.stack((X_pred,Y_pred),-1)
+#     z_exact = f(X_pred,Y_pred)
+
+#     # apprentissage uniforme
+#     mlp_reg = MLPRegressor(hidden_layer_sizes=(200,200,100),
+#                            max_iter = 500,activation = 'relu',
+#                            solver = 'adam')
+#     mlp_reg.fit(grid_uni,data_uni)
+#     z_pred = mlp_reg.predict(grid_pred)
+#     err_pred = np.abs(z_exact-z_pred)
+#     res_uni.append(np.linalg.norm(err_pred))
+    
+#     # apprentissage non uniforme
+#     mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(200,200,100),
+#                            max_iter = 500,activation = 'relu',
+#                            solver = 'adam')
+#     mlp_reg_nu.fit(grid_nu,data_nu)
+#     z_pred_nu = mlp_reg_nu.predict(grid_pred)
+#     err_pred_nu = np.abs(z_exact-z_pred_nu)
+#     res_nu.append(np.linalg.norm(err_pred_nu))
+    
+#%% affichage
+def smooth(y, box_pts):
+    box = np.ones(box_pts)/box_pts
+    y_smooth = np.convolve(y, box, mode='same')
+    return y_smooth
+
+plt.plot(grid_len,smooth(res_uni,5),'-o')
+plt.plot(grid_len,smooth(res_nu,5),'-o')
+plt.axvline(x = 1250,linestyle = '--',color = 'r')
+plt.axvline(x = 3050,linestyle = '--',color = 'r')
+plt.title('norme de l erreur d estimation en fonction du nombre de données')
+plt.legend(['grille uniforme','grille non uniforme'])
