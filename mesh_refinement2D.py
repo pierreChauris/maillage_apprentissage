@@ -57,7 +57,6 @@ def init_grid(N):
     return grid
 
 def f(X,Y):
-    #return np.exp(-0.4*(X-5)**2 - 0.4*(Y-5)**2)
     return np.exp(-0.4*(X-3.7)**2 - 0.4*(Y-3.7)**2) + np.exp(-0.4*(X-6.3)**2 - 0.4*(Y-6.3)**2)
 
 def emp_grad(cell):

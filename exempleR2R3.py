@@ -118,15 +118,14 @@ def dT_dz(x1,x2):
 def jacobien(cell):
     x1,x2 = cell.center()
     J = dT_dx(x1,x2)
-    norme = np.mean(J)
-    return np.sqrt(J[axis,0]**2 + J[axis,1]**2)
-    return norme
+    #return max(np.sqrt(J[0,0]**2 + J[0,1]**2)/2.75, np.sqrt(J[1,0]**2 + J[1,1]**2), np.sqrt(J[2,0]**2 + J[2,1]**2))/2
+    return np.max(J)
 
 #%%
-N = 7
+N = 10
 L = 2
 x10,x20 = -1,-1
-axis = 2
+axe = 1
 
 grid = init_grid(N)
 X,Y = cen(grid)
@@ -135,33 +134,33 @@ J = [jacobien(cell) for cell in grid]
 plt.figure()
 plt.xlim(x10,x10+L)
 plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,0],cmap = 'coolwarm')
+plt.scatter(X,Y,c = T_direct(X,Y)[:,0],s = 2,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
 
 plt.figure()
 plt.xlim(x10,x10+L)
 plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,1],cmap = 'coolwarm')
+plt.scatter(X,Y,c = T_direct(X,Y)[:,1],s = 2,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
 
 plt.figure()
 plt.xlim(x10,x10+L)
 plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,2],cmap = 'coolwarm')
+plt.scatter(X,Y,c = T_direct(X,Y)[:,2],s = 2,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
 
 plt.figure()
 plt.xlim(x10,x10+L)
 plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = J,cmap = 'coolwarm')
+plt.scatter(X,Y,c = J,s = 2,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
 
 #%%
-for _ in range(2):
+for _ in range(3):
     alpha = auto_threshold(grid)
     print('alpha :',alpha)
     grid = iterate_grid(grid,alpha)
@@ -170,21 +169,21 @@ for _ in range(2):
 plt.figure()
 plt.xlim(x10,x10+L)
 plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,0],cmap = 'coolwarm')
+plt.scatter(X,Y,c = T_direct(X,Y)[:,0],s = 2,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
 
 plt.figure()
 plt.xlim(x10,x10+L)
 plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,1],cmap = 'coolwarm')
+plt.scatter(X,Y,c = T_direct(X,Y)[:,1],s = 2,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
 
 plt.figure()
 plt.xlim(x10,x10+L)
 plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,2],cmap = 'coolwarm')
+plt.scatter(X,Y,c = T_direct(X,Y)[:,2],s = 2,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
 
@@ -192,7 +191,7 @@ plt.colorbar()
 mesh = np.stack((X,Y),-1)
 data = T_direct(X,Y)
 # fit
-mlp_reg = MLPRegressor(hidden_layer_sizes=(150,120,80),
+mlp_reg = MLPRegressor(hidden_layer_sizes=(150,50),
                        max_iter = 300,activation = 'relu',
                        solver = 'adam')
 
@@ -200,7 +199,7 @@ mlp_reg.fit(mesh,data)
 
 
 # prediction 
-Nt = 30
+Nt = 50
 x = np.linspace(-1,1,Nt)
 X1,X2 = np.meshgrid(x,x)
 Xt = np.stack((X2,X1),-1)
@@ -212,22 +211,22 @@ y_pred = mlp_reg.predict(Xt)
 
 
 plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = y_exact[:,axis],cmap = 'coolwarm')
+plt.scatter(X1.flatten(),X2.flatten(),c = y_exact[:,axe],cmap = 'jet',s = 1)
 plt.axis('square')
 plt.colorbar()
 
 plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = y_pred[:,axis],cmap = 'coolwarm')
+plt.scatter(X1.flatten(),X2.flatten(),c = y_pred[:,axe],cmap = 'jet',s = 1)
 plt.axis('square')
 plt.colorbar()
 
-err = np.abs(y_exact[:,axis] - y_pred[:,axis])
+err = np.abs(y_exact[:,axe] - y_pred[:,axe])
 plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = err,cmap = 'coolwarm')
+plt.scatter(X1.flatten(),X2.flatten(),c = err,cmap = 'jet',s = 1)
 plt.axis('square')
 plt.colorbar()
 
-print('Mean Squared Error:', metrics.mean_squared_error(y_exact, y_pred))  
+print('erreur (non uniforme):', metrics.mean_squared_error(y_exact, y_pred))  
 
 #%% apprentissage de T sur grille uniforme
 N_uni = int(np.sqrt(len(grid)))
@@ -239,7 +238,7 @@ grid_uni = np.stack((X_uni,Y_uni),-1)
 data_uni = T_direct(X_uni,Y_uni)
 
 # fit
-mlp_reg_uni = MLPRegressor(hidden_layer_sizes=(100,150,60,10),
+mlp_reg_uni = MLPRegressor(hidden_layer_sizes=(150,50),
                        max_iter = 300,activation = 'relu',
                        solver = 'adam')
 
@@ -249,19 +248,19 @@ mlp_reg_uni.fit(grid_uni,data_uni)
 y_pred = mlp_reg_uni.predict(Xt)
 
 plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = y_exact[:,axis],cmap = 'coolwarm')
+plt.scatter(X1.flatten(),X2.flatten(),c = y_exact[:,axe],cmap = 'jet',s = 1)
 plt.axis('square')
 plt.colorbar()
 
 plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = y_pred[:,axis],cmap = 'coolwarm')
+plt.scatter(X1.flatten(),X2.flatten(),c = y_pred[:,axe],cmap = 'jet',s = 1)
 plt.axis('square')
 plt.colorbar()
 
-err = np.abs(y_exact[:,axis] - y_pred[:,axis])
+err = np.abs(y_exact[:,axe] - y_pred[:,axe])
 plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = err,cmap = 'coolwarm')
+plt.scatter(X1.flatten(),X2.flatten(),c = err,cmap = 'jet',s = 1)
 plt.axis('square')
 plt.colorbar()
 
-print('Mean Squared Error:', metrics.mean_squared_error(y_exact, y_pred))  
+print('erreur (uniforme):', metrics.mean_squared_error(y_exact, y_pred))  
