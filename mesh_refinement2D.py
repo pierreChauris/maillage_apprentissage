@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPRegressor
 
+from findiff import FinDiff
 #%% def classe et fonctions
 
 class Cell:
@@ -73,7 +74,7 @@ def crit_sequence(grid):
     for cell in grid:
         gx,gy = emp_grad(cell)
         res.append(np.sqrt(gx**2+gy**2))
-        # res.append(max(gx,gy))
+        # res.append(max(gx,0))
     return np.array(res)
 
 def alpha_sequence(grid):
@@ -107,7 +108,7 @@ def iterate_grid(grid,alpha):
         k = grid.index(cell)
         gx,gy = emp_grad(cell)
         if np.sqrt(gx**2+gy**2) > alpha:
-        # if max(gx,gy) > alpha:
+        # if max(gx,0) > alpha:
             C00,C01,C10,C11 = cell.split()
             new_grid.remove(cell)
             new_grid.insert(k,C11)
@@ -140,7 +141,7 @@ data_uni = f(X_uni,Y_uni)
 
 
 # scale and fit
-mlp_reg = MLPRegressor(hidden_layer_sizes=(20,100),
+mlp_reg = MLPRegressor(hidden_layer_sizes=(200,200,100),
                        max_iter = 500,activation = 'relu',
                        solver = 'adam')
 sc=StandardScaler()
@@ -169,7 +170,7 @@ grid_nu = np.stack((X_nu,Y_nu),-1)
 data_nu = f(X_nu,Y_nu)
 
 # scale and fit
-mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(20,100),
+mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(200,200,100),
                        max_iter = 500,activation = 'relu',
                        solver = 'adam')
 sc=StandardScaler()
@@ -227,7 +228,7 @@ fig.subplots_adjust(bottom=0.1, top=0.9, left=0., right=0.8,
 
 plt.show()
 
-
+#%% affichage 2
 
 fig, (ax1,ax2,ax3) = plt.subplots(nrows=3, ncols=1, figsize=(10, 6.9))
 im = ax1.scatter(X_pred,Y_pred,c = z_pred,s = 1, cmap=colmap)
@@ -248,7 +249,7 @@ cb_ax = fig.add_axes([0.6, 0.126, 0.01, 0.22])
 cbar = fig.colorbar(im, cax=cb_ax)
 ax3.set_title('solution exacte')
 ax3.axis('square')
-#%% gradient
+#%% gradient 1
 grad = []
 
 for cell in grid:
@@ -259,3 +260,15 @@ plt.scatter(X_nu,Y_nu,c = grad,s = 1,cmap = 'jet')
 plt.axis('square')
 plt.colorbar()
 
+#%% gradient avec Findiff
+Z = f(X_uni,Y_uni).reshape(N_uni,N_uni)
+d_dx1 = FinDiff(0,1)
+d_dx2 = FinDiff(1,1)
+dZ_dx1 = d_dx1(Z)
+dZ_dx2 = d_dx2(Z)
+grad = np.sqrt(dZ_dx1**2+dZ_dx2**2)
+
+plt.figure()
+plt.scatter(X_uni,Y_uni,c = grad,s = 1,cmap = 'jet')
+plt.axis('square')
+plt.colorbar()

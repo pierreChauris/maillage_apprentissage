@@ -30,9 +30,8 @@ def dTinv_dz(i,j):
 
 
 # define the grid and compute T(x)=Z and dT/dx on the grid-------------------------------
-N = 200
+N = 20
 x1 = np.linspace(-1,1,N)
-#x1 = np.logspace(-1,1,N)
 x2 = x1
 X1,X2 = np.meshgrid(x1,x2)
 plt.scatter(X1,X2,1)
