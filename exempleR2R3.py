@@ -55,7 +55,7 @@ def init_grid(N):
 def crit_sequence(grid):
     res = []
     for cell in grid:
-        j = jacobien(cell)
+        j = critere(cell)
         res.append(j)
     return np.array(res)
 
@@ -88,7 +88,7 @@ def iterate_grid(grid,alpha):
     new_grid = grid.copy()
     for cell in grid:
         k = grid.index(cell)
-        J = jacobien(cell)
+        J = critere(cell)
         if J > alpha:
             C00,C01,C10,C11 = cell.split()
             new_grid.remove(cell)
@@ -115,7 +115,7 @@ def dT_dz(x1,x2):
     z1,z2,z3 = T_direct(x1,x2)
     return np.array([[z2,z1,0],[z3,0,z1]])
 
-def jacobien(cell):
+def critere(cell):
     x1,x2 = cell.center()
     J = dT_dx(x1,x2)
     #return max(np.sqrt(J[0,0]**2 + J[0,1]**2)/2.75, np.sqrt(J[1,0]**2 + J[1,1]**2), np.sqrt(J[2,0]**2 + J[2,1]**2))/2
@@ -129,7 +129,7 @@ axe = 1
 
 grid = init_grid(N)
 X,Y = cen(grid)
-J = [jacobien(cell) for cell in grid]
+J = [critere(cell) for cell in grid]
 
 plt.figure()
 plt.xlim(x10,x10+L)
@@ -264,3 +264,10 @@ plt.axis('square')
 plt.colorbar()
 
 print('erreur (uniforme):', metrics.mean_squared_error(y_exact, y_pred))  
+#%%
+x = np.linspace(0,2,10)
+X,Y = np.meshgrid(x,x)
+mesh = np.stack((X,Y),-1)
+mesh = mesh.reshape(100,2)
+plt.scatter(mesh[:,0],mesh[:,1])
+plt.axis('square')
