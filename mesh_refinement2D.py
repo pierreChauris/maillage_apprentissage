@@ -303,111 +303,111 @@ plt.colorbar()
 
 #%% erreur en fonction de la taille de la grille
 
-N_liste = np.arange(8,45)
-res_uni,res_nu,grid_len = [],[],[]
-for N in N_liste:
-    print(N)
-    grid = init_grid(N)
-    for _ in range(2):
-        alpha = auto_threshold(grid)
-        grid = iterate_grid(grid,alpha)
-    grid_len.append(len(grid))
-    # dataset non uniforme
-    X_nu,Y_nu = cen(grid)
-    grid_nu = np.stack((X_nu,Y_nu),-1)
-    data_nu = f(X_nu,Y_nu)
-    # dataset uniforme
-    N_uni = int(np.sqrt(len(grid)))
-    x_uni = np.linspace(x10,x10+L,N_uni)
-    X_uni,Y_uni = np.meshgrid(x_uni,x_uni)
-    X_uni = X_uni.reshape(N_uni*N_uni)
-    Y_uni = Y_uni.reshape(N_uni*N_uni)
-    grid_uni = np.stack((X_uni,Y_uni),-1)
-    data_uni = f(X_uni,Y_uni)
-    # grille de test
-    Npred = 80
-    x_pred = np.linspace(x10,x10+L,Npred)
-    X_pred,Y_pred = np.meshgrid(x_pred,x_pred)
-    X_pred = X_pred.reshape(Npred*Npred)
-    Y_pred = Y_pred.reshape(Npred*Npred)
-    grid_pred = np.stack((X_pred,Y_pred),-1)
-    z_exact = f(X_pred,Y_pred)
+# N_liste = np.arange(8,45)
+# res_uni,res_nu,grid_len = [],[],[]
+# for N in N_liste:
+#     print(N)
+#     grid = init_grid(N)
+#     for _ in range(2):
+#         alpha = auto_threshold(grid)
+#         grid = iterate_grid(grid,alpha)
+#     grid_len.append(len(grid))
+#     # dataset non uniforme
+#     X_nu,Y_nu = cen(grid)
+#     grid_nu = np.stack((X_nu,Y_nu),-1)
+#     data_nu = f(X_nu,Y_nu)
+#     # dataset uniforme
+#     N_uni = int(np.sqrt(len(grid)))
+#     x_uni = np.linspace(x10,x10+L,N_uni)
+#     X_uni,Y_uni = np.meshgrid(x_uni,x_uni)
+#     X_uni = X_uni.reshape(N_uni*N_uni)
+#     Y_uni = Y_uni.reshape(N_uni*N_uni)
+#     grid_uni = np.stack((X_uni,Y_uni),-1)
+#     data_uni = f(X_uni,Y_uni)
+#     # grille de test
+#     Npred = 80
+#     x_pred = np.linspace(x10,x10+L,Npred)
+#     X_pred,Y_pred = np.meshgrid(x_pred,x_pred)
+#     X_pred = X_pred.reshape(Npred*Npred)
+#     Y_pred = Y_pred.reshape(Npred*Npred)
+#     grid_pred = np.stack((X_pred,Y_pred),-1)
+#     z_exact = f(X_pred,Y_pred)
 
-    # apprentissage uniforme
-    mlp_reg = MLPRegressor(hidden_layer_sizes=(100,150,100),
-                            max_iter = 500,activation = 'relu',
-                            solver = 'adam')
-    sc=StandardScaler()
-    scaler_uni = sc.fit(grid_uni)
-    grid_pred_uni = grid_pred
-    # grid_pred_uni = scaler_uni.transform(grid_pred)
-    # grid_uni = scaler_uni.transform(grid_uni)
+#     # apprentissage uniforme
+#     mlp_reg = MLPRegressor(hidden_layer_sizes=(100,150,100),
+#                             max_iter = 500,activation = 'relu',
+#                             solver = 'adam')
+#     sc=StandardScaler()
+#     scaler_uni = sc.fit(grid_uni)
+#     grid_pred_uni = grid_pred
+#     # grid_pred_uni = scaler_uni.transform(grid_pred)
+#     # grid_uni = scaler_uni.transform(grid_uni)
     
-    mlp_reg.fit(grid_uni,data_uni)
-    z_pred = mlp_reg.predict(grid_pred_uni)
-    err_pred = np.abs(z_exact-z_pred)
-    res_uni.append(np.mean(err_pred))
+#     mlp_reg.fit(grid_uni,data_uni)
+#     z_pred = mlp_reg.predict(grid_pred_uni)
+#     err_pred = np.abs(z_exact-z_pred)
+#     res_uni.append(np.mean(err_pred))
     
-    # apprentissage non uniforme
-    mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(100,150,100),
-                            max_iter = 500,activation = 'relu',
-                            solver = 'adam')
-    sc=StandardScaler()
-    scaler_nu = sc.fit(grid_nu)
-    grid_pred_nu = grid_pred
+#     # apprentissage non uniforme
+#     mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(100,150,100),
+#                             max_iter = 500,activation = 'relu',
+#                             solver = 'adam')
+#     sc=StandardScaler()
+#     scaler_nu = sc.fit(grid_nu)
+#     grid_pred_nu = grid_pred
 
-    # grid_pred_nu = scaler_nu.transform(grid_pred)
-    # grid_nu = scaler_nu.transform(grid_nu)
+#     # grid_pred_nu = scaler_nu.transform(grid_pred)
+#     # grid_nu = scaler_nu.transform(grid_nu)
     
-    mlp_reg_nu.fit(grid_nu,data_nu)
-    z_pred_nu = mlp_reg_nu.predict(grid_pred_nu)
-    err_pred_nu = np.abs(z_exact-z_pred_nu)
-    res_nu.append(np.mean(err_pred_nu))
+#     mlp_reg_nu.fit(grid_nu,data_nu)
+#     z_pred_nu = mlp_reg_nu.predict(grid_pred_nu)
+#     err_pred_nu = np.abs(z_exact-z_pred_nu)
+#     res_nu.append(np.mean(err_pred_nu))
     
-    # affichage
+#     # affichage
     
-    fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(10, 6.9))
-    colmap = 'jet'
-    im = axes[0,0].scatter(X_uni,Y_uni,c = f(X_uni,Y_uni),s = 1, cmap=colmap)
-    cb_ax = fig.add_axes([0.24, 0.527, 0.01, 0.35])
-    cbar = fig.colorbar(im, cax=cb_ax)
-    axes[0,0].set_title('dataset uniforme')
+#     fig, axes = plt.subplots(nrows=2, ncols=3, figsize=(10, 6.9))
+#     colmap = 'jet'
+#     im = axes[0,0].scatter(X_uni,Y_uni,c = f(X_uni,Y_uni),s = 1, cmap=colmap)
+#     cb_ax = fig.add_axes([0.24, 0.527, 0.01, 0.35])
+#     cbar = fig.colorbar(im, cax=cb_ax)
+#     axes[0,0].set_title('dataset uniforme')
 
-    im = axes[0,1].scatter(X_pred,Y_pred,c = z_pred,s = 1, cmap=colmap)
-    cb_ax = fig.add_axes([0.524, 0.527, 0.01, 0.35])
-    cbar = fig.colorbar(im, cax=cb_ax)
-    axes[0,1].set_title('prédiction ')
+#     im = axes[0,1].scatter(X_pred,Y_pred,c = z_pred,s = 1, cmap=colmap)
+#     cb_ax = fig.add_axes([0.524, 0.527, 0.01, 0.35])
+#     cbar = fig.colorbar(im, cax=cb_ax)
+#     axes[0,1].set_title('prédiction ')
 
-    im = axes[0,2].scatter(X_pred,Y_pred,c = err_pred,s = 1, cmap=colmap)
-    cb_ax = fig.add_axes([0.795, 0.527, 0.01, 0.35])
-    cbar = fig.colorbar(im, cax=cb_ax)
-    axes[0,2].set_title('erreur absolue')
+#     im = axes[0,2].scatter(X_pred,Y_pred,c = err_pred,s = 1, cmap=colmap)
+#     cb_ax = fig.add_axes([0.795, 0.527, 0.01, 0.35])
+#     cbar = fig.colorbar(im, cax=cb_ax)
+#     axes[0,2].set_title('erreur absolue')
 
-    im = axes[1,0].scatter(X_nu,Y_nu,c = f(X_nu,Y_nu),s = 1, cmap=colmap)
-    cb_ax = fig.add_axes([0.24, 0.1242, 0.01, 0.35])
-    cbar = fig.colorbar(im, cax=cb_ax)
-    axes[1,0].set_title('dataset non uniforme')
+#     im = axes[1,0].scatter(X_nu,Y_nu,c = f(X_nu,Y_nu),s = 1, cmap=colmap)
+#     cb_ax = fig.add_axes([0.24, 0.1242, 0.01, 0.35])
+#     cbar = fig.colorbar(im, cax=cb_ax)
+#     axes[1,0].set_title('dataset non uniforme')
 
-    im = axes[1,1].scatter(X_pred,Y_pred,c = z_pred_nu,s = 1, cmap=colmap)
-    cb_ax = fig.add_axes([0.524, 0.1242, 0.01, 0.35])
-    cbar = fig.colorbar(im, cax=cb_ax)
-    axes[1,1].set_title('prédiction')
+#     im = axes[1,1].scatter(X_pred,Y_pred,c = z_pred_nu,s = 1, cmap=colmap)
+#     cb_ax = fig.add_axes([0.524, 0.1242, 0.01, 0.35])
+#     cbar = fig.colorbar(im, cax=cb_ax)
+#     axes[1,1].set_title('prédiction')
 
-    im = axes[1,2].scatter(X_pred,Y_pred,c = err_pred_nu,s = 1, cmap=colmap)
-    cb_ax = fig.add_axes([0.795, 0.1242, 0.01, 0.35])
-    cbar = fig.colorbar(im, cax=cb_ax)
-    axes[1,2].set_title('erreur absolue')
-
-
-    for ax in axes.flat:
-        ax.set_axis_off()
-        ax.axis('square')
+#     im = axes[1,2].scatter(X_pred,Y_pred,c = err_pred_nu,s = 1, cmap=colmap)
+#     cb_ax = fig.add_axes([0.795, 0.1242, 0.01, 0.35])
+#     cbar = fig.colorbar(im, cax=cb_ax)
+#     axes[1,2].set_title('erreur absolue')
 
 
-    fig.subplots_adjust(bottom=0.1, top=0.9, left=0., right=0.8,
-                        wspace=0.2, hspace=0.02)
+#     for ax in axes.flat:
+#         ax.set_axis_off()
+#         ax.axis('square')
 
-    plt.show()
+
+#     fig.subplots_adjust(bottom=0.1, top=0.9, left=0., right=0.8,
+#                         wspace=0.2, hspace=0.02)
+
+#     plt.show()
     
 #%% affichage
 def smooth(y, box_pts):
@@ -415,8 +415,8 @@ def smooth(y, box_pts):
     y_smooth = np.convolve(y, box, mode='same')
     return y_smooth
 
-plt.plot(grid_len,smooth(res_uni,1),'-o')
-plt.plot(grid_len,smooth(res_nu,1),'-o')
+plt.plot(grid_len,smooth(res_uni,3),'-o')
+plt.plot(grid_len,smooth(res_nu,3),'-o')
 plt.axvline(x = 1250,linestyle = '--',color = 'r')
 plt.axvline(x = 3050,linestyle = '--',color = 'r')
 plt.title('norme de l erreur d estimation en fonction du nombre de données')

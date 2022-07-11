@@ -119,7 +119,7 @@ def critere(cell):
     x1,x2 = cell.center()
     J = dT_dx(x1,x2)
     #return max(np.sqrt(J[0,0]**2 + J[0,1]**2)/2.75, np.sqrt(J[1,0]**2 + J[1,1]**2), np.sqrt(J[2,0]**2 + J[2,1]**2))/2
-    return np.max(J)
+    return np.max(np.abs(J))
 
 #%%
 N = 10
