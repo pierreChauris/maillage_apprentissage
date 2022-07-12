@@ -118,12 +118,12 @@ def iterate_grid(grid,alpha):
     return new_grid
 
 #%% raffinement
-N = 15
+N = 12
 L = 10
 x10,x20 = 0,0
-
+start = time.time()
 grid = init_grid(N)
-niter = 3
+niter = 4
 X,Y = cen(grid)
 plt.figure()
 plt.scatter(X,Y,c = f(X,Y),s = 1,cmap = 'jet')
@@ -138,7 +138,9 @@ for _ in range(niter):
     plt.scatter(X,Y,c = f(X,Y),s = 1,cmap = 'jet')
     plt.axis('square')
     plt.colorbar()
-
+end = time.time() - start
+print(end)
+print(len(grid))
 #%% génération grille uniforme
 
 N_uni = int(np.sqrt(len(grid)))
