@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import time
 #%% 
 def f(X,Y):
-    # return np.exp(-0.4*(X-3.7)**2 - 0.4*(Y-3.7)**2) + np.exp(-0.4*(X-6.3)**2 - 0.4*(Y-6.3)**2)
+    return np.exp(-0.4*(X-3.7)**2 - 0.4*(Y-3.7)**2) + np.exp(-0.4*(X-6.3)**2 - 0.4*(Y-6.3)**2)
     return Y*np.sin(X)
 
 
@@ -136,35 +136,24 @@ def ppv(cell,grid,Z,p):
         Zc = np.delete(Zc,ind)
     return res,resZ
 
-def surrogate_linear(cell,grid,Z,size):
-    sub_grid,Z = ppv(cell,grid,Z,size)
-    X,Y = coordinate(sub_grid)
-    A = np.stack((X,Y,np.ones(X.size)),-1)
-    A_star = np.linalg.pinv(A)
-    param = np.dot(A_star,Z)
-    return param
 
-
-def surrogate_gradient(cell,grid,Z,size):
-    a,b,c = surrogate_linear(cell,grid,Z,size)
-    return [a,b]
-
-def crit_sequence(grid,Z):
+def crit_sequence(grid,Z,nx,ny):
     iso,vert,horiz = [],[],[]
+    Coeffs = coeffs(grid,Z,nx,ny)
     for cell in grid:
-        gx,gy = surrogate_gradient(cell,grid,Z,4)
+        gx,gy = gradient(cell,nx,ny,Coeffs)
         iso.append(np.sqrt(gx**2+gy**2))
         vert.append(np.abs(gx))
         horiz.append(np.abs(gy))
     return np.array(iso),np.array(vert),np.array(horiz)
 
-def alpha_sequence(grid,Z):
-    res1,res2,res3 = crit_sequence(grid,Z)
+def alpha_sequence(grid,Z,nx,ny):
+    res1,res2,res3 = crit_sequence(grid,Z,nx,ny)
     return np.linspace(0,res1.mean(),len(grid)),np.linspace(0,res2.mean(),len(grid)),np.linspace(0,res3.mean(),len(grid))
 
-def distrib_sequence(grid,Z):
-    alpha1,alpha2,alpha3 = alpha_sequence(grid,Z)
-    crit1,crit2,crit3 = crit_sequence(grid,Z)
+def distrib_sequence(grid,Z,nx,ny):
+    alpha1,alpha2,alpha3 = alpha_sequence(grid,Z,nx,ny)
+    crit1,crit2,crit3 = crit_sequence(grid,Z,nx,ny)
     res1,res2,res3 = [],[],[]
     for j in range(alpha1.size):
         dj1 = np.count_nonzero(crit1>alpha1[j])
@@ -175,9 +164,9 @@ def distrib_sequence(grid,Z):
         res3.append(dj3)
     return np.array(res1),np.array(res2),np.array(res3)
 
-def auto_threshold(grid,Z):
-    alpha1,alpha2,alpha3 = alpha_sequence(grid,Z)
-    d1,d2,d3 = distrib_sequence(grid,Z)
+def auto_threshold(grid,Z,nx,ny):
+    alpha1,alpha2,alpha3 = alpha_sequence(grid,Z,nx,ny)
+    d1,d2,d3 = distrib_sequence(grid,Z,nx,ny)
     f1,f2,f3 = alpha1*d1,alpha2*d2,alpha3*d3
     #maximum global
     fmax1,fmax2,fmax3 = np.max(f1), np.max(f2), np.max(f3)
@@ -188,11 +177,15 @@ def auto_threshold(grid,Z):
     return alphamax1,alphamax2,alphamax3
 
 def iterate_grid(grid,Z,smooth):
-    alpha,alphax,alphay = auto_threshold(grid,Z)
+    nx = int(np.sqrt(len(grid))/3.3)
+    ny = int(np.sqrt(len(grid))/3.3)
+    alpha,alphax,alphay = auto_threshold(grid,Z,nx,ny)
     new_grid = grid.copy()
+    Coeffs = coeffs(grid,Z,nx,ny)
     for cell in grid:
         k = grid.index(cell)
-        gx,gy = emp_grad(cell)
+        gx,gy = gradient(cell,nx,ny,Coeffs)
+        
         raffinement = 0        
         
         # smooth grid
@@ -246,60 +239,6 @@ def iterate_grid(grid,Z,smooth):
          
     return new_grid
 
-
-#%%
-start = time.time()
-geometry = [2*np.pi,1,20,11,0,0]
-# geometry = [10,10,10,10,0,0]
-grid = init_grid(geometry)
-
-niter = 4
-for _ in range(niter):
-    X1,X2 = coordinate(grid)
-    Z = f(X1,X2)
-    print('taille de la grille :',len(grid))
-    grid = iterate_grid(grid,Z,True)
-    
-print('taille de la grille :',len(grid))
-X1,X2 = coordinate(grid)
-
-plt.figure()
-plt.scatter(X1,X2,c = f(X1,X2),s = 1,cmap = 'jet')
-plt.colorbar()
-if geometry[0]==geometry[1]:
-    plt.axis('square')
-end = time.time() - start
-print(end)
-#%%
-# plt.plot(A1,'-o')
-# plt.plot(A2,'-o')
-# plt.plot(A3,'-o')
-# plt.legend(['norme','x axis','y axis'])
-
-#%% surrogate models
-
-grid = init_grid([10,10,50,50,0,0])
-X1,X2 = coordinate(grid)
-Z = f(X1,X2)
-
-sur_grad = []
-em_grad = []
-for cell in grid:
-    gx,gy = surrogate_gradient(cell, grid, Z, 4)
-    sur_grad.append(np.sqrt(gx**2+gy**2))
-    gx,gy = emp_grad(cell)
-    em_grad.append(np.sqrt(gx**2+gy**2))
-    
-plt.figure()
-plt.scatter(X1,X2,c = sur_grad,cmap = 'jet')
-plt.colorbar()
-
-plt.figure()
-plt.scatter(X1,X2,c = em_grad,cmap = 'jet')
-plt.colorbar()
-
-#%%
-
 def split_grid(grid,Z,nx,ny,ix,iy):
     "return the sub grid of index (ix,iy) from the grid divided in nx time ny regions"
     sub_grid = []
@@ -317,7 +256,12 @@ def split_grid(grid,Z,nx,ny,ix,iy):
 def surr_grad(sub_grid,sub_Z):
     "return the array of coefficients of the polynomial model fit over sub_grid"
     X,Y = coordinate(sub_grid)
+    # degré 1
+    A = np.stack((X,Y,np.ones(X.size)),-1)
+    # degré 2
     A = np.stack((X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
+    # degré 3
+    A = np.stack((X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
     A_star = np.linalg.pinv(A)
     param = np.dot(A_star,sub_Z)
     return param
@@ -337,10 +281,50 @@ def gradient(cell,nx,ny,Coeffs):
     x,y = cell.center
     Lx,Ly = cell.geometry[0:2]
     ix,iy = int(x/(Lx/nx)), int(y/(Ly/ny))
-    [a,b,c,d,e,f] = Coeffs[iy*nx+ix]
-    gx = 2*a*x + b*y + d
-    gy = 2*c*y + b*x + e
-    return gx,gy
+    # degré 1
+    # [a,b,c] = Coeffs[iy*nx+ix]
+    # gx = a
+    # gy = b
+    # degré 2
+    # [a,b,c,d,e,f] = Coeffs[iy*nx+ix]
+    # gx = 2*a*x + b*y + d
+    # gy = 2*c*y + b*x + e
+    # degré 3
+    [a1,a2,a3,a4,a5,a6,a7,a8,a9,a10] = Coeffs[iy*nx+ix]
+    gx = 3*a1*x**2 + 2*a2*x*y + a3*y**2 + 2*a5*x + a6*y + a8
+    gy = a2*x**2 + 2*a3*x*y + 3*a4*y**2 + a6*x + 2*a7*y + a9
+    return abs(gx),abs(gy)
+
+#%%
+start = time.time()
+geometry = [2*np.pi,1,20,11,0,0]
+geometry = [10,10,10,10,0,0]
+grid = init_grid(geometry)
+
+niter = 4
+
+for _ in range(niter):
+    X1,X2 = coordinate(grid)
+    Z = f(X1,X2)
+    print('taille de la grille :',len(grid))
+    grid = iterate_grid(grid,Z,True)
+    
+print('taille de la grille :',len(grid))
+X1,X2 = coordinate(grid)
+
+plt.figure()
+plt.scatter(X1,X2,c = f(X1,X2),s = 1,cmap = 'jet')
+plt.colorbar()
+if geometry[0]==geometry[1]:
+    plt.axis('square')
+end = time.time() - start
+print(end)
+
+#%%
+# plt.plot(A1,'-o')
+# plt.plot(A2,'-o')
+# plt.plot(A3,'-o')
+# plt.legend(['norme','x axis','y axis'])
 
 #%%
 
@@ -361,7 +345,7 @@ plt.scatter(X0,Y0,c = sub_Z)
 plt.axis('square')
 
 #%%
-grid = init_grid([10,1,40,40,0,0])
+grid = init_grid([10,10,50,50,0,0])
 X,Y = coordinate(grid)
 Z = f(X,Y)
 
@@ -378,9 +362,13 @@ for cell in grid:
 plt.figure()
 plt.scatter(X,Y,c = grad,cmap = 'jet')
 plt.colorbar()
-plt.title('gradient surrogate model de degré 2')
+plt.axis('square')
+plt.title('gradient surrogate model de degré 3')
 
 plt.figure()
 plt.scatter(X,Y,c = exact_grad,cmap = 'jet')
 plt.colorbar()
+plt.axis('square')
 plt.title('gradient exact')
+
+
