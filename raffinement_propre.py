@@ -8,12 +8,9 @@ Created on Mon Jul 11 12:11:27 2022
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-
-from sklearn.preprocessing import StandardScaler
-from sklearn.neural_network import MLPRegressor
 #%% 
 def f(X,Y):
-    #return np.exp(-0.4*(X-3.7)**2 - 0.4*(Y-3.7)**2) + np.exp(-0.4*(X-6.3)**2 - 0.4*(Y-6.3)**2)
+    # return np.exp(-0.4*(X-3.7)**2 - 0.4*(Y-3.7)**2) + np.exp(-0.4*(X-6.3)**2 - 0.4*(Y-6.3)**2)
     return Y*np.sin(X)
 
 
@@ -253,10 +250,10 @@ def iterate_grid(grid,Z,smooth):
 #%%
 start = time.time()
 geometry = [2*np.pi,1,20,11,0,0]
-# geometry = [10,10,12,12,0,0]
+# geometry = [10,10,10,10,0,0]
 grid = init_grid(geometry)
 
-niter = 2
+niter = 4
 for _ in range(niter):
     X1,X2 = coordinate(grid)
     Z = f(X1,X2)
@@ -301,5 +298,89 @@ plt.figure()
 plt.scatter(X1,X2,c = em_grad,cmap = 'jet')
 plt.colorbar()
 
-    
-    
+#%%
+
+def split_grid(grid,Z,nx,ny,ix,iy):
+    "return the sub grid of index (ix,iy) from the grid divided in nx time ny regions"
+    sub_grid = []
+    sub_Z = []
+    for cell in grid:
+        ind = grid.index(cell)
+        x,y = cell.center
+        Lx,Ly = cell.geometry[0:2]
+        Ox,Oy = cell.geometry[4:6]
+        if ix*Lx/nx+Ox < x < (ix+1)*Lx/nx+Ox and iy*Ly/ny+Oy < y < (iy+1)*Ly/ny+Oy:
+            sub_grid.append(cell)
+            sub_Z.append(Z[ind])
+    return sub_grid,sub_Z
+
+def surr_grad(sub_grid,sub_Z):
+    "return the array of coefficients of the polynomial model fit over sub_grid"
+    X,Y = coordinate(sub_grid)
+    A = np.stack((X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
+    A_star = np.linalg.pinv(A)
+    param = np.dot(A_star,sub_Z)
+    return param
+
+def coeffs(grid,Z,nx,ny):
+    "return the list of coefficients of all the nx time ny surrogate models of the grid"
+    Coeffs = []
+    for iy in range(ny):
+        for ix in range(nx):
+            sub_grid,sub_Z = split_grid(grid,Z,nx,ny,ix,iy)
+            param = surr_grad(sub_grid,sub_Z)
+            Coeffs.append(param)
+    return Coeffs
+
+def gradient(cell,nx,ny,Coeffs):
+    "compute the gradient of the cell from the surrogate model where the cell is located"
+    x,y = cell.center
+    Lx,Ly = cell.geometry[0:2]
+    ix,iy = int(x/(Lx/nx)), int(y/(Ly/ny))
+    [a,b,c,d,e,f] = Coeffs[iy*nx+ix]
+    gx = 2*a*x + b*y + d
+    gy = 2*c*y + b*x + e
+    return gx,gy
+
+#%%
+
+grid = init_grid([10,10,20,20,0,0])
+X,Y = coordinate(grid)
+Z = f(X,Y)
+
+
+nx,ny = 10,10
+
+sub_grid,sub_Z = split_grid(grid,Z,nx,ny,3,3)
+
+plt.scatter(X,Y)
+plt.axis('square')
+
+X0,Y0 = coordinate(sub_grid)
+plt.scatter(X0,Y0,c = sub_Z)
+plt.axis('square')
+
+#%%
+grid = init_grid([10,1,40,40,0,0])
+X,Y = coordinate(grid)
+Z = f(X,Y)
+
+grad = []
+exact_grad = []
+nx,ny = 15,15
+Coeffs = coeffs(grid,Z,nx,ny)
+for cell in grid:
+    gx,gy = gradient(cell,nx,ny,Coeffs)
+    grad.append(np.sqrt(gx**2+gy**2))
+    gx,gy = emp_grad(cell)
+    exact_grad.append(np.sqrt(gx**2+gy**2))
+
+plt.figure()
+plt.scatter(X,Y,c = grad,cmap = 'jet')
+plt.colorbar()
+plt.title('gradient surrogate model de degré 2')
+
+plt.figure()
+plt.scatter(X,Y,c = exact_grad,cmap = 'jet')
+plt.colorbar()
+plt.title('gradient exact')
