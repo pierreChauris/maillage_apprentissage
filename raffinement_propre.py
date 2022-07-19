@@ -109,37 +109,9 @@ def emp_grad(cell):
     Dfy = f(x1,y0+dy) - f(x1,y0)
     return np.abs(Dfx/dx),np.abs(Dfy/dy)
 
-def ppv(cell,grid,Z,p):
-    "retourne les p plus proches voisins d'une cellule"
-    ind0 = grid.index(cell)
-    new_grid = grid.copy()
-    Zc = Z.copy()
-    new_grid.remove(cell)
-    Zc = np.delete(Zc,ind0)
-    x,y = cell.center
-    distances = []
-    for cells in new_grid:
-        xi,yi = cells.center
-        d = np.sqrt((x-xi)**2+(y-yi)**2)
-        distances.append(d)
-        
-    res = [cell]
-    resZ = [Z[ind0]]
-    
-    for i in range(p):
-        d = min(distances)
-        ind = distances.index(d)
-        res.append(new_grid[ind])
-        resZ.append(Zc[ind])
-        distances.remove(d)
-        new_grid.remove(new_grid[ind])
-        Zc = np.delete(Zc,ind)
-    return res,resZ
 
-
-def crit_sequence(grid,Z,nx,ny):
+def crit_sequence(grid,Z,nx,ny,Coeffs):
     iso,vert,horiz = [],[],[]
-    Coeffs = coeffs(grid,Z,nx,ny)
     for cell in grid:
         gx,gy = gradient(cell,nx,ny,Coeffs)
         iso.append(np.sqrt(gx**2+gy**2))
@@ -147,13 +119,13 @@ def crit_sequence(grid,Z,nx,ny):
         horiz.append(np.abs(gy))
     return np.array(iso),np.array(vert),np.array(horiz)
 
-def alpha_sequence(grid,Z,nx,ny):
-    res1,res2,res3 = crit_sequence(grid,Z,nx,ny)
+def alpha_sequence(grid,Z,nx,ny,Coeffs):
+    res1,res2,res3 = crit_sequence(grid,Z,nx,ny,Coeffs)
     return np.linspace(0,res1.mean(),len(grid)),np.linspace(0,res2.mean(),len(grid)),np.linspace(0,res3.mean(),len(grid))
 
-def distrib_sequence(grid,Z,nx,ny):
-    alpha1,alpha2,alpha3 = alpha_sequence(grid,Z,nx,ny)
-    crit1,crit2,crit3 = crit_sequence(grid,Z,nx,ny)
+def distrib_sequence(grid,Z,nx,ny,Coeffs):
+    alpha1,alpha2,alpha3 = alpha_sequence(grid,Z,nx,ny,Coeffs)
+    crit1,crit2,crit3 = crit_sequence(grid,Z,nx,ny,Coeffs)
     res1,res2,res3 = [],[],[]
     for j in range(alpha1.size):
         dj1 = np.count_nonzero(crit1>alpha1[j])
@@ -164,9 +136,9 @@ def distrib_sequence(grid,Z,nx,ny):
         res3.append(dj3)
     return np.array(res1),np.array(res2),np.array(res3)
 
-def auto_threshold(grid,Z,nx,ny):
-    alpha1,alpha2,alpha3 = alpha_sequence(grid,Z,nx,ny)
-    d1,d2,d3 = distrib_sequence(grid,Z,nx,ny)
+def auto_threshold(grid,Z,nx,ny,Coeffs):
+    alpha1,alpha2,alpha3 = alpha_sequence(grid,Z,nx,ny,Coeffs)
+    d1,d2,d3 = distrib_sequence(grid,Z,nx,ny,Coeffs)
     f1,f2,f3 = alpha1*d1,alpha2*d2,alpha3*d3
     #maximum global
     fmax1,fmax2,fmax3 = np.max(f1), np.max(f2), np.max(f3)
@@ -177,11 +149,13 @@ def auto_threshold(grid,Z,nx,ny):
     return alphamax1,alphamax2,alphamax3
 
 def iterate_grid(grid,Z,smooth):
-    nx = int(np.sqrt(len(grid))/3.3)
-    ny = int(np.sqrt(len(grid))/3.3)
-    alpha,alphax,alphay = auto_threshold(grid,Z,nx,ny)
-    new_grid = grid.copy()
+    # nombre de surrogate models optimal pour des surrogates models de degré 3
+    nx = int(np.sqrt(len(grid))/5)
+    ny = int(np.sqrt(len(grid))/5)
     Coeffs = coeffs(grid,Z,nx,ny)
+    alpha,alphax,alphay = auto_threshold(grid,Z,nx,ny,Coeffs)
+    new_grid = grid.copy()
+    
     for cell in grid:
         k = grid.index(cell)
         gx,gy = gradient(cell,nx,ny,Coeffs)
@@ -253,15 +227,17 @@ def split_grid(grid,Z,nx,ny,ix,iy):
             sub_Z.append(Z[ind])
     return sub_grid,sub_Z
 
-def surr_grad(sub_grid,sub_Z):
+def surr_model(sub_grid,sub_Z):
     "return the array of coefficients of the polynomial model fit over sub_grid"
     X,Y = coordinate(sub_grid)
     # degré 1
     A = np.stack((X,Y,np.ones(X.size)),-1)
     # degré 2
-    A = np.stack((X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
+    # A = np.stack((X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
     # degré 3
-    A = np.stack((X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
+    # A = np.stack((X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
+    # degré 4
+    # A = np.stack((X**4,Y*X**3,(X*Y)**2,X*Y**3,Y**4,X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
     A_star = np.linalg.pinv(A)
     param = np.dot(A_star,sub_Z)
     return param
@@ -272,7 +248,7 @@ def coeffs(grid,Z,nx,ny):
     for iy in range(ny):
         for ix in range(nx):
             sub_grid,sub_Z = split_grid(grid,Z,nx,ny,ix,iy)
-            param = surr_grad(sub_grid,sub_Z)
+            param = surr_model(sub_grid,sub_Z)
             Coeffs.append(param)
     return Coeffs
 
@@ -282,17 +258,21 @@ def gradient(cell,nx,ny,Coeffs):
     Lx,Ly = cell.geometry[0:2]
     ix,iy = int(x/(Lx/nx)), int(y/(Ly/ny))
     # degré 1
-    # [a,b,c] = Coeffs[iy*nx+ix]
-    # gx = a
-    # gy = b
+    [a,b,c] = Coeffs[iy*nx+ix]
+    gx = a
+    gy = b
     # degré 2
     # [a,b,c,d,e,f] = Coeffs[iy*nx+ix]
     # gx = 2*a*x + b*y + d
     # gy = 2*c*y + b*x + e
     # degré 3
-    [a1,a2,a3,a4,a5,a6,a7,a8,a9,a10] = Coeffs[iy*nx+ix]
-    gx = 3*a1*x**2 + 2*a2*x*y + a3*y**2 + 2*a5*x + a6*y + a8
-    gy = a2*x**2 + 2*a3*x*y + 3*a4*y**2 + a6*x + 2*a7*y + a9
+    # [a1,a2,a3,a4,a5,a6,a7,a8,a9,a10] = Coeffs[iy*nx+ix]
+    # gx = 3*a1*x**2 + 2*a2*x*y + a3*y**2 + 2*a5*x + a6*y + a8
+    # gy = a2*x**2 + 2*a3*x*y + 3*a4*y**2 + a6*x + 2*a7*y + a9
+    # degré 4
+    # [a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15] = Coeffs[iy*nx+ix]
+    # gx = 4*a1*x**3 + 3*a2*x**2*y + 2*a3*x*y**2 + a4*y**3 + 3*a6*x**2 + 2*a7*x*y + a8*y**2 + 2*a10*x + a11*y + a13
+    # gy = a2*x**3 + 2*a3*x**2*y + 3*a4*x*y**2 + 4*a5*y**3 + a7*x**2 + 2*a8*x*y + 3*a9*y**2 + a11*x + 2*a12*y + a14
     return abs(gx),abs(gy)
 
 #%%
@@ -321,23 +301,17 @@ end = time.time() - start
 print(end)
 
 #%%
-# plt.plot(A1,'-o')
-# plt.plot(A2,'-o')
-# plt.plot(A3,'-o')
-# plt.legend(['norme','x axis','y axis'])
-
-#%%
 
 grid = init_grid([10,10,20,20,0,0])
 X,Y = coordinate(grid)
 Z = f(X,Y)
 
 
-nx,ny = 10,10
+nx,ny = 3,3
 
-sub_grid,sub_Z = split_grid(grid,Z,nx,ny,3,3)
+sub_grid,sub_Z = split_grid(grid,Z,nx,ny,1,1)
 
-plt.scatter(X,Y)
+plt.scatter(X,Y,c = 'white')
 plt.axis('square')
 
 X0,Y0 = coordinate(sub_grid)
@@ -351,7 +325,7 @@ Z = f(X,Y)
 
 grad = []
 exact_grad = []
-nx,ny = 15,15
+nx,ny = 10,10
 Coeffs = coeffs(grid,Z,nx,ny)
 for cell in grid:
     gx,gy = gradient(cell,nx,ny,Coeffs)
@@ -359,16 +333,73 @@ for cell in grid:
     gx,gy = emp_grad(cell)
     exact_grad.append(np.sqrt(gx**2+gy**2))
 
+erreur = np.linalg.norm(np.array(grad) - np.array(exact_grad))
+print('erreur :',erreur)
+
 plt.figure()
 plt.scatter(X,Y,c = grad,cmap = 'jet')
 plt.colorbar()
-plt.axis('square')
 plt.title('gradient surrogate model de degré 3')
 
 plt.figure()
 plt.scatter(X,Y,c = exact_grad,cmap = 'jet')
 plt.colorbar()
-plt.axis('square')
 plt.title('gradient exact')
 
+#%%
+N = 40
+grid = init_grid([10,10,N,N,0,0])
+X,Y = coordinate(grid)
+Z = f(X,Y)
+err = []
+for i in range(4,15):
+    print(i)
+    grad = []
+    exact_grad = []
+    nx,ny = i,i
+    Coeffs = coeffs(grid,Z,nx,ny)
+    for cell in grid:
+        gx,gy = gradient(cell,nx,ny,Coeffs)
+        grad.append(np.sqrt(gx**2+gy**2))
+        gx,gy = emp_grad(cell)
+        exact_grad.append(np.sqrt(gx**2+gy**2))
 
+    erreur = np.linalg.norm(np.array(grad) - np.array(exact_grad))
+    err.append(erreur)
+
+#%%
+err_d1 = err
+#%%
+err_d2 = err
+#%%
+err_d3 = err
+#%%
+err_d4 = err
+#%%
+plt.title('erreur sur le gradient en fonction du nombre de surrogate models N = 40')
+plt.plot([i for i in range(4,15)],err_d2,'-o',color='blue')
+plt.plot([i for i in range(4,15)],err_d3,'-o',color='orange')
+plt.plot([i for i in range(4,15)],err_d4,'-o',color='green')
+plt.axvline(x = 8,linestyle='--',color = 'green')
+plt.axvline(x = 10,linestyle='--',color = 'orange')
+plt.axvline(x = 13,linestyle='--',color = 'blue')
+
+plt.legend(['degré 2','degré 3','degré 4'])
+plt.xlabel('nombre de surrogate models par axe')
+plt.ylabel('norme de l erreur')
+
+#%%
+
+def Poly(n,X,Y):
+    pol = np.zeros(X.shape)
+    for k in range(n+1):
+        for i in range(k+1):
+            pol += ((-1)**i)*(X**i)*(Y**(k-i))
+    return pol
+
+n = 5
+X = np.linspace(-20,20,100)
+X,Y = np.meshgrid(X,X)
+pol = Poly(n,X,Y)
+
+plt.scatter(X,Y,c=pol)
