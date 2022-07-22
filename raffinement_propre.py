@@ -248,6 +248,7 @@ def coeffs(grid,Z,nx,ny):
     for iy in range(ny):
         for ix in range(nx):
             sub_grid,sub_Z = split_grid(grid,Z,nx,ny,ix,iy)
+            print(len(sub_grid))
             param = surr_model(sub_grid,sub_Z)
             Coeffs.append(param)
     return Coeffs
@@ -256,7 +257,8 @@ def gradient(cell,nx,ny,Coeffs):
     "compute the gradient of the cell from the surrogate model where the cell is located"
     x,y = cell.center
     Lx,Ly = cell.geometry[0:2]
-    ix,iy = int(x/(Lx/nx)), int(y/(Ly/ny))
+    Ox,Oy = cell.geometry[4:6]
+    ix,iy = int((x-Ox)/(Lx/nx)), int((y-Oy)/(Ly/ny))
     # degré 1
     # [a,b,c] = Coeffs[iy*nx+ix]
     # gx = a
@@ -278,10 +280,10 @@ def gradient(cell,nx,ny,Coeffs):
 #%%
 start = time.time()
 geometry = [2*np.pi,1,20,11,0,0]
-geometry = [10,10,10,10,0,0]
+geometry = [10,10,30,30,0,0]
 grid = init_grid(geometry)
 
-niter = 4
+niter = 2
 
 for _ in range(niter):
     X1,X2 = coordinate(grid)
@@ -309,7 +311,7 @@ Z = f(X,Y)
 
 nx,ny = 3,3
 
-sub_grid,sub_Z = split_grid(grid,Z,nx,ny,1,1)
+sub_grid,sub_Z = split_grid(grid,Z,nx,ny,1,2)
 
 plt.scatter(X,Y,c = 'white')
 plt.axis('square')
@@ -317,15 +319,29 @@ plt.axis('square')
 X0,Y0 = coordinate(sub_grid)
 plt.scatter(X0,Y0,c = sub_Z)
 plt.axis('square')
+#%%
+import random
+nx,ny = 10,10
+col = np.array(['r','g','b','y'])
+plt.scatter(X,Y,c = 'white')
+plt.axis('square')
+for ix in range(nx):
+    for iy in range(ny):
+        sub_grid,sub_Z = split_grid(grid,Z,nx,ny,ix,iy)
+        X0,Y0 = coordinate(sub_grid)
+        plt.scatter(X0,Y0,c = col[random.randint(0,3)],s=10)
+        plt.axis('square')
+        
+    
 
 #%%
-grid = init_grid([10,10,50,50,0,0])
+grid = init_grid([2*np.pi,1,40,20,0,0])
 X,Y = coordinate(grid)
 Z = f(X,Y)
 
 grad = []
 exact_grad = []
-nx,ny = 10,10
+nx,ny = 8,4
 Coeffs = coeffs(grid,Z,nx,ny)
 for cell in grid:
     gx,gy = gradient(cell,nx,ny,Coeffs)
@@ -403,3 +419,24 @@ X,Y = np.meshgrid(X,X)
 pol = Poly(n,X,Y)
 
 plt.scatter(X,Y,c=pol)
+
+#%%
+grid = init_grid([4,4,50,50,1,1])
+X,Y = coordinate(grid)
+Z = np.exp(-((X-3)**2 + (Y-3)**2))
+
+plt.scatter(X,Y,c=Z,cmap='jet')
+plt.colorbar()
+plt.show()
+#%%
+grad = []
+nx,ny = 10,10
+Coeffs = coeffs(grid,Z,nx,ny)
+for cell in grid:
+    gx,gy = gradient(cell,nx,ny,Coeffs)
+    grad.append(np.sqrt(gx**2+gy**2))
+#%%
+plt.scatter(X,Y,c = grad,s=5,cmap = 'jet')
+plt.colorbar()
+plt.title('gradient surrogate model de degré 3')
+plt.show()
