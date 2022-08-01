@@ -227,54 +227,53 @@ def split_grid(grid,Z,nx,ny,ix,iy):
             sub_Z.append(Z[ind])
     return sub_grid,sub_Z
 
-def surr_model(sub_grid,sub_Z):
+def surr_model(sub_grid,sub_Z,degre):
     "return the array of coefficients of the polynomial model fit over sub_grid"
     X,Y = coordinate(sub_grid)
-    # degré 1
-    A = np.stack((X,Y,np.ones(X.size)),-1)
-    # degré 2
-    A = np.stack((X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
-    # degré 3
-    A = np.stack((X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
-    # degré 4
-    A = np.stack((X**4,Y*X**3,(X*Y)**2,X*Y**3,Y**4,X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
+    if degre == 1:
+        A = np.stack((X,Y,np.ones(X.size)),-1)
+    if degre == 2:
+        A = np.stack((X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
+    if degre == 3:
+        A = np.stack((X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
+    if degre == 4:
+        A = np.stack((X**4,Y*X**3,(X*Y)**2,X*Y**3,Y**4,X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
     A_star = np.linalg.pinv(A)
     param = np.dot(A_star,sub_Z)
     return param
 
-def coeffs(grid,Z,nx,ny):
+def coeffs(grid,Z,nx,ny,degre):
     "return the list of coefficients of all the nx time ny surrogate models of the grid"
     Coeffs = []
     for iy in range(ny):
         for ix in range(nx):
             sub_grid,sub_Z = split_grid(grid,Z,nx,ny,ix,iy)
-            print(len(sub_grid))
-            param = surr_model(sub_grid,sub_Z)
+            param = surr_model(sub_grid,sub_Z,degre)
             Coeffs.append(param)
     return Coeffs
 
-def gradient(cell,nx,ny,Coeffs):
+def gradient(cell,nx,ny,Coeffs,degre):
     "compute the gradient of the cell from the surrogate model where the cell is located"
     x,y = cell.center
     Lx,Ly = cell.geometry[0:2]
     Ox,Oy = cell.geometry[4:6]
     ix,iy = int((x-Ox)/(Lx/nx)), int((y-Oy)/(Ly/ny))
-    # degré 1
-    # [a,b,c] = Coeffs[iy*nx+ix]
-    # gx = a
-    # gy = b
-    # degré 2
-    # [a,b,c,d,e,f] = Coeffs[iy*nx+ix]
-    # gx = 2*a*x + b*y + d
-    # gy = 2*c*y + b*x + e
-    # degré 3
-    # [a1,a2,a3,a4,a5,a6,a7,a8,a9,a10] = Coeffs[iy*nx+ix]
-    # gx = 3*a1*x**2 + 2*a2*x*y + a3*y**2 + 2*a5*x + a6*y + a8
-    # gy = a2*x**2 + 2*a3*x*y + 3*a4*y**2 + a6*x + 2*a7*y + a9
-    # degré 4
-    [a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15] = Coeffs[iy*nx+ix]
-    gx = 4*a1*x**3 + 3*a2*x**2*y + 2*a3*x*y**2 + a4*y**3 + 3*a6*x**2 + 2*a7*x*y + a8*y**2 + 2*a10*x + a11*y + a13
-    gy = a2*x**3 + 2*a3*x**2*y + 3*a4*x*y**2 + 4*a5*y**3 + a7*x**2 + 2*a8*x*y + 3*a9*y**2 + a11*x + 2*a12*y + a14
+    if degre == 1:
+        [a,b,c] = Coeffs[iy*nx+ix]
+        gx = a
+        gy = b
+    if degre == 2:
+        [a,b,c,d,e,f] = Coeffs[iy*nx+ix]
+        gx = 2*a*x + b*y + d
+        gy = 2*c*y + b*x + e
+    if degre == 3:
+        [a1,a2,a3,a4,a5,a6,a7,a8,a9,a10] = Coeffs[iy*nx+ix]
+        gx = 3*a1*x**2 + 2*a2*x*y + a3*y**2 + 2*a5*x + a6*y + a8
+        gy = a2*x**2 + 2*a3*x*y + 3*a4*y**2 + a6*x + 2*a7*y + a9
+    if degre == 4:
+        [a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15] = Coeffs[iy*nx+ix]
+        gx = 4*a1*x**3 + 3*a2*x**2*y + 2*a3*x*y**2 + a4*y**3 + 3*a6*x**2 + 2*a7*x*y + a8*y**2 + 2*a10*x + a11*y + a13
+        gy = a2*x**3 + 2*a3*x**2*y + 3*a4*x*y**2 + 4*a5*y**3 + a7*x**2 + 2*a8*x*y + 3*a9*y**2 + a11*x + 2*a12*y + a14
     return abs(gx),abs(gy)
 
 #%%
@@ -335,16 +334,17 @@ for ix in range(nx):
     
 
 #%%
-grid = init_grid([2*np.pi,1,40,20,0,0])
+grid = init_grid([10,10,40,40,0,0])
 X,Y = coordinate(grid)
 Z = f(X,Y)
 
 grad = []
 exact_grad = []
-nx,ny = 8,4
-Coeffs = coeffs(grid,Z,nx,ny)
+nx,ny = 8,8
+degre = 4
+Coeffs = coeffs(grid,Z,nx,ny,degre)
 for cell in grid:
-    gx,gy = gradient(cell,nx,ny,Coeffs)
+    gx,gy = gradient(cell,nx,ny,Coeffs,degre)
     grad.append(np.sqrt(gx**2+gy**2))
     gx,gy = emp_grad(cell)
     exact_grad.append(np.sqrt(gx**2+gy**2))
@@ -361,7 +361,6 @@ plt.figure()
 plt.scatter(X,Y,c = exact_grad,cmap = 'jet')
 plt.colorbar()
 plt.title('gradient exact')
-
 #%%
 N = 40
 grid = init_grid([10,10,N,N,0,0])

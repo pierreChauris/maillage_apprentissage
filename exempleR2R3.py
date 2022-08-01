@@ -9,265 +9,170 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn import metrics
 from sklearn.neural_network import MLPRegressor
-#%% Def classes et fonctions
-class Cell:
-    def __init__(self,index,level):
-        self.level = level
-        self.index = index
-    def info(self):
-        print('index :',self.index)
-        print('level :',self.level)
-    def split(self):
-        C00 = Cell(np.concatenate((self.index,[0,0])),self.level + 1)
-        C01 = Cell(np.concatenate((self.index,[0,1])),self.level + 1)
-        C10 = Cell(np.concatenate((self.index,[1,0])),self.level + 1)
-        C11 = Cell(np.concatenate((self.index,[1,1])),self.level + 1)
-        return C00,C01,C10,C11
-    def center(self):
-        index = self.index
-        level = self.level
-        x1 = 0
-        x2 =  0
-        for k in range(level):
-            x1 += index[2*k]*L/2**k/N
-            x2 += index[2*k+1]*L/2**k/N
-        x1 += L/N/2**(k+1) + x10
-        x2 += L/N/2**(k+1) + x20
-        return np.array([x1,x2])
-
-def cen(grid):
-    X1 = []
-    X2 = []
-    for cell in grid:
-        x1,x2 = cell.center()
-        X1.append(x1)
-        X2.append(x2)
-    return np.array(X1),np.array(X2)
-
-def init_grid(N):
-    grid = []
-    for i in range(N):
-        for j in range(N):
-            grid.append(Cell(np.array([i,j]),1))
-    return grid
-
-
-def crit_sequence(grid):
-    res = []
-    for cell in grid:
-        j = critere(cell)
-        res.append(j)
-    return np.array(res)
-
-def alpha_sequence(grid):
-    res = crit_sequence(grid)
-    return np.linspace(0,res.mean(),len(grid))
-
-def distrib_sequence(grid):
-    alpha = alpha_sequence(grid)
-    crit = crit_sequence(grid)
-    res = []
-    for j in range(alpha.size):
-        dj = np.count_nonzero(crit>alpha[j])
-        res.append(dj)
-    return np.array(res)
-
-def auto_threshold(grid):
-    alpha = alpha_sequence(grid)
-    d = distrib_sequence(grid)
-    f = alpha*d
-    #maximum global
-    fmax = np.max(f)
-    idmax = np.where(f == fmax)
-    idmax = idmax[0][0]
-    #alpha 
-    alphamax = alpha[idmax]
-    return alphamax
-
-def iterate_grid(grid,alpha):
-    new_grid = grid.copy()
-    for cell in grid:
-        k = grid.index(cell)
-        J = critere(cell)
-        if J > alpha:
-            C00,C01,C10,C11 = cell.split()
-            new_grid.remove(cell)
-            new_grid.insert(k,C11)
-            new_grid.insert(k,C10)
-            new_grid.insert(k,C01)
-            new_grid.insert(k,C00)
-    return new_grid
-
-def T_direct(x1,x2):
-    s = x1**2+x2**2+1
-    z = np.array([s,x1/s,x2/s])
-    return np.transpose(z)
-
-def T_inverse(z1,z2,z3):
-    return np.array([z1*z2,z1*z3])
-
-def dT_dx(x1,x2):
-    den = (x1**2+x2**2+1)**2
-    return np.array([[2*x1,2*x2],
-                     [(x2**2-x1**2+1)/den,-2*x1*x2/den],
-                     [-2*x1*x2/den,(x1**2-x2**2+1)/den]])
-def dT_dz(x1,x2):
-    z1,z2,z3 = T_direct(x1,x2)
-    return np.array([[z2,z1,0],[z3,0,z1]])
-
-def critere(cell):
-    x1,x2 = cell.center()
-    J = dT_dx(x1,x2)
-    #return max(np.sqrt(J[0,0]**2 + J[0,1]**2)/2.75, np.sqrt(J[1,0]**2 + J[1,1]**2), np.sqrt(J[2,0]**2 + J[2,1]**2))/2
-    return np.max(np.abs(J))
-
+from raffinement import *
 #%%
-N = 10
-L = 2
-x10,x20 = -1,-1
+def T_direct(X,Y):
+    s = X**2 + Y**2 + 0.001
+    return np.array([s,X/s,Y/s]).T
+
+def T_inverse(Z1,Z2,Z3):
+    return np.array([Z1*Z2,Z1*Z3]).T
+
+#%% Gération des données
+geometry = [2,2,20,20,-1,-1]
+
+grid = init_grid(geometry)
+X,Y = coordinate(grid)
+Z = T_direct(X,Y)
+
+_,ax = plt.subplots(1,3)
+for i in range(Z.shape[1]):
+    ax[i].scatter(X,Y,c = Z[:,i],s=5,cmap = 'jet')
+    ax[i].axis('square')
+
+
+#%% Raffinement des données
+grid1 = iterate_grid(grid,Z[:,0],True)
+grid2 = iterate_grid(grid,Z[:,1],True)
+grid3 = iterate_grid(grid,Z[:,2],True)
+
+grids = [grid1,grid2,grid3]
+
+Xr1,Yr1 = coordinate(grid1)
+Xr2,Yr2 = coordinate(grid2)
+Xr3,Yr3 = coordinate(grid3)
+
+XX = [Xr1,Xr2,Xr3]
+YY = [Yr1,Yr2,Yr3]
+
+Z1 = T_direct(Xr1,Yr1)
+Z2 = T_direct(Xr2,Yr2)
+Z3 = T_direct(Xr3,Yr3)
+
+ZZ = [Z1,Z2,Z3]
+
+_,(ax1,ax2,ax3) = plt.subplots(1,3)
+ax1.scatter(Xr1,Yr1,c=Z1[:,0],s=1,cmap='jet')
+ax1.axis('square')
+ax2.scatter(Xr2,Yr2,c=Z2[:,1],s=1,cmap='jet')
+ax2.axis('square')
+ax3.scatter(Xr3,Yr3,c=Z3[:,2],s=1,cmap='jet')
+ax3.axis('square')
+
+
+#%% dataset de test
+Nt = 100
+x = np.linspace(-1,1,Nt)
+Xt2,Xt1 = np.meshgrid(x,x)
+Xt = np.stack((Xt1,Xt2),-1)
+Xt = Xt.reshape(Nt*Nt,2)
+y_exact = T_direct(Xt1.flatten(),Xt2.flatten())
+
 axe = 1
 
-grid = init_grid(N)
-X,Y = cen(grid)
-J = [critere(cell) for cell in grid]
-
-plt.figure()
-plt.xlim(x10,x10+L)
-plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,0],s = 2,cmap = 'jet')
-plt.axis('square')
-plt.colorbar()
-
-plt.figure()
-plt.xlim(x10,x10+L)
-plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,1],s = 2,cmap = 'jet')
-plt.axis('square')
-plt.colorbar()
-
-plt.figure()
-plt.xlim(x10,x10+L)
-plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,2],s = 2,cmap = 'jet')
-plt.axis('square')
-plt.colorbar()
-
-plt.figure()
-plt.xlim(x10,x10+L)
-plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = J,s = 2,cmap = 'jet')
-plt.axis('square')
-plt.colorbar()
-
 #%%
-for _ in range(3):
-    alpha = auto_threshold(grid)
-    print('alpha :',alpha)
-    grid = iterate_grid(grid,alpha)
-    X,Y = cen(grid)
 
-plt.figure()
-plt.xlim(x10,x10+L)
-plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,0],s = 2,cmap = 'jet')
-plt.axis('square')
+theta = np.linspace(0,2*np.pi,50)
+x,y = 0.5*np.cos(theta),0.5*np.sin(theta)
+Ct = np.stack((x,y),-1)
+Ct = Ct.reshape(50,2)
+
+plt.scatter(Xt1.flatten(),Xt2.flatten(),c='white')
+plt.scatter(x,y,c=T_direct(x,y)[:,0],cmap='jet')
 plt.colorbar()
-
-plt.figure()
-plt.xlim(x10,x10+L)
-plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,1],s = 2,cmap = 'jet')
 plt.axis('square')
-plt.colorbar()
-
-plt.figure()
-plt.xlim(x10,x10+L)
-plt.ylim(x20,x20+L)
-plt.scatter(X,Y,c = T_direct(X,Y)[:,2],s = 2,cmap = 'jet')
-plt.axis('square')
-plt.colorbar()
-
 #%% apprentissage de T sur grille non uniforme
-mesh = np.stack((X,Y),-1)
-data = T_direct(X,Y)
+data_in = np.stack((XX[axe],YY[axe]),-1)
+data_out = ZZ[axe]
 # fit
-mlp_reg = MLPRegressor(hidden_layer_sizes=(150,50),
-                       max_iter = 300,activation = 'relu',
+mlp_reg = MLPRegressor(hidden_layer_sizes=(50,10),
+                       max_iter = 1000,activation = 'relu',
                        solver = 'adam')
 
-mlp_reg.fit(mesh,data)
+mlp_reg.fit(data_in,data_out)
 
+# prediction
+y_pred_nu = mlp_reg.predict(Xt)
+y_pred_tr = mlp_reg.predict(Ct)
+axes = [axe]
+u = ((y_exact[:,axes] - y_pred_nu[:,axes])** 2).sum()
+v = ((y_exact[:,axes] - y_exact[:,axes].mean()) ** 2).sum()
+score = 1-(u/v)
+print('score nu :',score)
 
-# prediction 
-Nt = 50
-x = np.linspace(-1,1,Nt)
-X1,X2 = np.meshgrid(x,x)
-Xt = np.stack((X2,X1),-1)
-Xt = Xt.reshape(Nt*Nt,2)
-y_exact = T_direct(X1,X2)
-y_exact = y_exact.reshape(Nt*Nt,3)
-y_pred = mlp_reg.predict(Xt)
+#%% affichage
+for i in range(3):   
+    plt.figure()
+    plt.scatter(Xt1.flatten(),Xt2.flatten(),c = np.log10(np.abs(y_pred_nu[:,i]-y_exact[:,i])),cmap = 'jet')
+    plt.axis('square')
+    plt.colorbar()
 
-
-
-plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = y_exact[:,axe],cmap = 'jet',s = 1)
-plt.axis('square')
-plt.colorbar()
-
-plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = y_pred[:,axe],cmap = 'jet',s = 1)
-plt.axis('square')
-plt.colorbar()
-
-err = np.abs(y_exact[:,axe] - y_pred[:,axe])
-plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = err,cmap = 'jet',s = 1)
-plt.axis('square')
-plt.colorbar()
-
-print('erreur (non uniforme):', metrics.mean_squared_error(y_exact, y_pred))  
-
+_,ax = plt.subplots(1,3)
+for i in range(3):
+    ax[i].scatter(Xt1.flatten(),Xt2.flatten(),c = y_pred_nu[:,i],cmap = 'jet')
+    ax[i].axis('square')
 #%% apprentissage de T sur grille uniforme
-N_uni = int(np.sqrt(len(grid)))
-x_uni = np.linspace(x10,x10+L,N_uni)
+N_uni = int(np.sqrt(len(grids[axe])))
+x_uni = np.linspace(-1,1,N_uni)
 X_uni,Y_uni = np.meshgrid(x_uni,x_uni)
-X_uni = X_uni.reshape(N_uni*N_uni)
-Y_uni = Y_uni.reshape(N_uni*N_uni)
-grid_uni = np.stack((X_uni,Y_uni),-1)
+X_uni = X_uni.flatten()
+Y_uni = Y_uni.flatten()
+mesh_uni = np.stack((X_uni,Y_uni),-1)
 data_uni = T_direct(X_uni,Y_uni)
 
 # fit
-mlp_reg_uni = MLPRegressor(hidden_layer_sizes=(150,50),
-                       max_iter = 300,activation = 'relu',
+mlp_reg_uni = MLPRegressor(hidden_layer_sizes=(50,10),
+                       max_iter = 1000,activation = 'relu',
                        solver = 'adam')
 
-mlp_reg_uni.fit(grid_uni,data_uni)
+mlp_reg_uni.fit(mesh_uni,data_uni)
 
 # prediction
-y_pred = mlp_reg_uni.predict(Xt)
+y_pred_u = mlp_reg_uni.predict(Xt)
+axes = [axe]
+u = ((y_exact[:,axes] - y_pred_u[:,axes])** 2).sum()
+v = ((y_exact[:,axes] - y_exact[:,axes].mean()) ** 2).sum()
+score = 1-(u/v)
+print('score u:',score)
 
-plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = y_exact[:,axe],cmap = 'jet',s = 1)
+#%% affichage
+for i in range(3):   
+    plt.figure()
+    plt.scatter(Xt1.flatten(),Xt2.flatten(),c = np.log10(np.abs(y_pred_u[:,i]-y_exact[:,i])),cmap = 'jet')
+    plt.axis('square')
+    plt.colorbar()
+
+_,ax = plt.subplots(1,3)
+for i in range(3):
+    ax[i].scatter(Xt1.flatten(),Xt2.flatten(),c = y_pred_u[:,i],cmap = 'jet')
+    ax[i].axis('square')
+#%% loss curve
+plt.plot(mlp_reg.loss_curve_,'r')
+plt.plot(mlp_reg_uni.loss_curve_,'b')
+plt.legend(['non uniforme','uniforme'])
+
+
+#%% apprentissage de T*
+
+data_in = ZZ[axe]
+data_out = np.stack((XX[axe],YY[axe]),-1)
+
+mlp_inv = MLPRegressor(hidden_layer_sizes=(50,50),
+                       max_iter = 1000,activation = 'relu',
+                       solver = 'adam')
+
+mlp_inv.fit(data_in,data_out)
+
+#%% prediction
+traj_pred = mlp_inv.predict(y_pred_tr)
+x_pred = mlp_inv.predict(y_pred_nu)
+erreur = (Xt-x_pred)**2
+erreur = (erreur[:,0]+erreur[:,1])/erreur.shape[0]
+print(np.sqrt(np.sum(erreur)))
+plt.scatter(Xt[:,0],Xt[:,1],c=erreur,cmap='jet')
 plt.axis('square')
 plt.colorbar()
 
-plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = y_pred[:,axe],cmap = 'jet',s = 1)
-plt.axis('square')
-plt.colorbar()
-
-err = np.abs(y_exact[:,axe] - y_pred[:,axe])
-plt.figure()
-plt.scatter(X1.flatten(),X2.flatten(),c = err,cmap = 'jet',s = 1)
-plt.axis('square')
-plt.colorbar()
-
-print('erreur (uniforme):', metrics.mean_squared_error(y_exact, y_pred))  
-#%%
-x = np.linspace(0,2,10)
-X,Y = np.meshgrid(x,x)
-mesh = np.stack((X,Y),-1)
-mesh = mesh.reshape(100,2)
-plt.scatter(mesh[:,0],mesh[:,1])
+plt.plot(x,y,c='green',linestyle='--')
+plt.plot(traj_pred[:,0],traj_pred[:,1],c='r',linestyle='--')
 plt.axis('square')

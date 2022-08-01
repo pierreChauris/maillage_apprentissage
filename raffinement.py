@@ -116,7 +116,7 @@ def crit_sequence(grid,Z,nx,ny,Coeffs):
 
 def alpha_sequence(grid,Z,nx,ny,Coeffs):
     res1,res2,res3 = crit_sequence(grid,Z,nx,ny,Coeffs)
-    return np.linspace(0,res1.mean(),len(grid)),np.linspace(0,res2.mean(),len(grid)),np.linspace(0,res3.mean(),len(grid))
+    return np.linspace(0,res1.max(),len(grid)),np.linspace(0,res2.max(),len(grid)),np.linspace(0,res3.max(),len(grid))
 
 
 def distrib_sequence(grid,Z,nx,ny,Coeffs):
@@ -143,7 +143,7 @@ def auto_threshold(grid,Z,nx,ny,Coeffs):
     idmax1,idmax2,idmax3 = idmax1[0][0],idmax2[0][0],idmax3[0][0]
     #alpha 
     alphamax1,alphamax2,alphamax3 = alpha1[idmax1], alpha2[idmax2], alpha3[idmax3]
-    return alphamax1,alphamax2,alphamax3
+    return alphamax1,alphamax2,alphamax3,alpha1,alpha2,alpha3,d1,d2,d3
 
 
 def iterate_grid(grid,Z,smooth):
@@ -151,9 +151,9 @@ def iterate_grid(grid,Z,smooth):
     nx = int(np.sqrt(len(grid))/5)
     ny = int(np.sqrt(len(grid))/5)
     Coeffs = coeffs(grid,Z,nx,ny)
-    alpha,alphax,alphay = auto_threshold(grid,Z,nx,ny,Coeffs)
+    alpha,alphax,alphay,alpha1,alpha2,alpha3,d1,d2,d3 = auto_threshold(grid,Z,nx,ny,Coeffs)
     new_grid = grid.copy()
-    
+    iso,cx,cy = 0,0,0
     for cell in grid:
         k = grid.index(cell)
         gx,gy = gradient(cell,nx,ny,Coeffs)
@@ -181,34 +181,42 @@ def iterate_grid(grid,Z,smooth):
                 new_grid.insert(k,C01)
                 new_grid.insert(k,C00)
                 raffinement += 1
+        
             
         # raffinement uniquement sur x 
-        if gx > 15*gy and gx > alphax and raffinement == 0:
+        if gx > alphax and raffinement == 0:
             C00,C01 = cell.split_x()
             if cell in new_grid:
                 new_grid.remove(cell)
             new_grid.insert(k,C01)
             new_grid.insert(k,C00)
             raffinement += 1
+            cx += 1
             
         # reffinement uniquement sur y 
-        if gy > 15*gx and gy > alphay and raffinement == 0:
+        if gy > alphay and raffinement == 0:
             C00,C01 = cell.split_y()
             if cell in new_grid:
                 new_grid.remove(cell)
             new_grid.insert(k,C01)
             new_grid.insert(k,C00)
             raffinement += 1
+            cy += 1
         
-        # sinon raffinement iso
+        # raffinement iso
         if np.sqrt(gx**2+gy**2) > alpha and raffinement == 0:
             C00,C01,C10,C11 = cell.split_iso()
-            new_grid.remove(cell)
+            if cell in new_grid:
+                new_grid.remove(cell)
             new_grid.insert(k,C11)
             new_grid.insert(k,C10)
             new_grid.insert(k,C01)
             new_grid.insert(k,C00)
-         
+            raffinement += 1
+            iso += 1
+        
+
+    print(iso,cx,cy)     
     return new_grid
 
 
