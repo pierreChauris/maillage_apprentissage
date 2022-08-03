@@ -18,8 +18,18 @@ def T_direct(X,Y):
 def T_inverse(Z1,Z2,Z3):
     return np.array([Z1*Z2,Z1*Z3]).T
 
+def eq_uniform_data(X_mesh):
+    N_uni = int(np.sqrt(X_mesh.shape[0]))
+    x_uni = np.linspace(-1,1,N_uni)
+    X_uni,Y_uni = np.meshgrid(x_uni,x_uni)
+    X_uni = X_uni.flatten()
+    Y_uni = Y_uni.flatten()
+    mesh_uni = np.stack((X_uni,Y_uni),-1)
+    data_uni = T_direct(X_uni,Y_uni)
+    return mesh_uni,data_uni
+
 #%% Gération des données
-geometry = [2,2,20,20,-1,-1]
+geometry = [2,2,10,10,-1,-1]
 
 grid = init_grid(geometry)
 X,Y = coordinate(grid)
@@ -51,6 +61,23 @@ Z3 = T_direct(Xr3,Yr3)
 
 ZZ = [Z1,Z2,Z3]
 
+grid1 = iterate_grid(grid1,Z1[:,0],True)
+grid2 = iterate_grid(grid2,Z2[:,1],True)
+grid3 = iterate_grid(grid3,Z3[:,2],True)
+
+Xr1,Yr1 = coordinate(grid1)
+Xr2,Yr2 = coordinate(grid2)
+Xr3,Yr3 = coordinate(grid3)
+
+XX = [Xr1,Xr2,Xr3]
+YY = [Yr1,Yr2,Yr3]
+
+Z1 = T_direct(Xr1,Yr1)
+Z2 = T_direct(Xr2,Yr2)
+Z3 = T_direct(Xr3,Yr3)
+
+ZZ = [Z1,Z2,Z3]
+
 _,(ax1,ax2,ax3) = plt.subplots(1,3)
 ax1.scatter(Xr1,Yr1,c=Z1[:,0],s=1,cmap='jet')
 ax1.axis('square')
@@ -59,6 +86,12 @@ ax2.axis('square')
 ax3.scatter(Xr3,Yr3,c=Z3[:,2],s=1,cmap='jet')
 ax3.axis('square')
 
+_,ax = plt.subplots(1,3)
+for i in range(3):
+    mesh,data = eq_uniform_data(XX[i])
+    data = data[:,i]
+    ax[i].scatter(mesh[:,0],mesh[:,1],c = data,s=1,cmap = 'jet')
+    ax[i].axis('square')
 
 #%% dataset de test
 Nt = 100
@@ -70,30 +103,26 @@ y_exact = T_direct(Xt1.flatten(),Xt2.flatten())
 
 axe = 1
 
-#%%
-
-theta = np.linspace(0,2*np.pi,50)
-x,y = 0.5*np.cos(theta),0.5*np.sin(theta)
+#%% trajectoire de test
+theta = np.linspace(0,2*np.pi,Nt)
+r = 0.5
+x,y = r*np.cos(theta),r*np.sin(theta)
 Ct = np.stack((x,y),-1)
-Ct = Ct.reshape(50,2)
+Ct = Ct.reshape(Nt,2)
 
-plt.scatter(Xt1.flatten(),Xt2.flatten(),c='white')
-plt.scatter(x,y,c=T_direct(x,y)[:,0],cmap='jet')
-plt.colorbar()
-plt.axis('square')
 #%% apprentissage de T sur grille non uniforme
 data_in = np.stack((XX[axe],YY[axe]),-1)
 data_out = ZZ[axe]
 # fit
-mlp_reg = MLPRegressor(hidden_layer_sizes=(50,10),
+mlp_reg = MLPRegressor(hidden_layer_sizes=(50,20),
                        max_iter = 1000,activation = 'relu',
                        solver = 'adam')
 
 mlp_reg.fit(data_in,data_out)
 
-# prediction
+#%% prediction
 y_pred_nu = mlp_reg.predict(Xt)
-y_pred_tr = mlp_reg.predict(Ct)
+y_pred_tr_nu = mlp_reg.predict(Ct)
 axes = [axe]
 u = ((y_exact[:,axes] - y_pred_nu[:,axes])** 2).sum()
 v = ((y_exact[:,axes] - y_exact[:,axes].mean()) ** 2).sum()
@@ -101,34 +130,33 @@ score = 1-(u/v)
 print('score nu :',score)
 
 #%% affichage
-for i in range(3):   
-    plt.figure()
-    plt.scatter(Xt1.flatten(),Xt2.flatten(),c = np.log10(np.abs(y_pred_nu[:,i]-y_exact[:,i])),cmap = 'jet')
-    plt.axis('square')
-    plt.colorbar()
+# for i in range(3):   
+#     plt.figure()
+#     plt.scatter(Xt1.flatten(),Xt2.flatten(),c = np.log10(np.abs(y_pred_nu[:,i]-y_exact[:,i])),cmap = 'jet')
+#     plt.axis('square')
+#     plt.colorbar()
 
 _,ax = plt.subplots(1,3)
 for i in range(3):
     ax[i].scatter(Xt1.flatten(),Xt2.flatten(),c = y_pred_nu[:,i],cmap = 'jet')
     ax[i].axis('square')
 #%% apprentissage de T sur grille uniforme
-N_uni = int(np.sqrt(len(grids[axe])))
-x_uni = np.linspace(-1,1,N_uni)
-X_uni,Y_uni = np.meshgrid(x_uni,x_uni)
-X_uni = X_uni.flatten()
-Y_uni = Y_uni.flatten()
-mesh_uni = np.stack((X_uni,Y_uni),-1)
-data_uni = T_direct(X_uni,Y_uni)
+mesh_uni,data_uni = eq_uniform_data(XX[axe])
 
+_,ax = plt.subplots(1,3)
+for i in range(3):
+    ax[i].scatter(mesh_uni[:,0],mesh_uni[:,1],c = data_uni[:,i],s=1,cmap = 'jet')
+    ax[i].axis('square')
 # fit
-mlp_reg_uni = MLPRegressor(hidden_layer_sizes=(50,10),
+mlp_reg_uni = MLPRegressor(hidden_layer_sizes=(50,20),
                        max_iter = 1000,activation = 'relu',
                        solver = 'adam')
 
 mlp_reg_uni.fit(mesh_uni,data_uni)
 
-# prediction
+#%% prediction
 y_pred_u = mlp_reg_uni.predict(Xt)
+y_pred_tr_u = mlp_reg_uni.predict(Ct)
 axes = [axe]
 u = ((y_exact[:,axes] - y_pred_u[:,axes])** 2).sum()
 v = ((y_exact[:,axes] - y_exact[:,axes].mean()) ** 2).sum()
@@ -136,11 +164,11 @@ score = 1-(u/v)
 print('score u:',score)
 
 #%% affichage
-for i in range(3):   
-    plt.figure()
-    plt.scatter(Xt1.flatten(),Xt2.flatten(),c = np.log10(np.abs(y_pred_u[:,i]-y_exact[:,i])),cmap = 'jet')
-    plt.axis('square')
-    plt.colorbar()
+# for i in range(3):   
+#     plt.figure()
+#     plt.scatter(Xt1.flatten(),Xt2.flatten(),c = np.log10(np.abs(y_pred_u[:,i]-y_exact[:,i])),cmap = 'jet')
+#     plt.axis('square')
+#     plt.colorbar()
 
 _,ax = plt.subplots(1,3)
 for i in range(3):
@@ -153,7 +181,7 @@ plt.legend(['non uniforme','uniforme'])
 
 
 #%% apprentissage de T*
-
+axe = 0
 data_in = ZZ[axe]
 data_out = np.stack((XX[axe],YY[axe]),-1)
 
@@ -164,15 +192,58 @@ mlp_inv = MLPRegressor(hidden_layer_sizes=(50,50),
 mlp_inv.fit(data_in,data_out)
 
 #%% prediction
-traj_pred = mlp_inv.predict(y_pred_tr)
-x_pred = mlp_inv.predict(y_pred_nu)
+traj_pred_nu = mlp_inv.predict(y_pred_tr_nu)
+traj_pred_u = mlp_inv.predict(y_pred_tr_u)
+x_pred = mlp_inv.predict(y_pred_u)
 erreur = (Xt-x_pred)**2
 erreur = (erreur[:,0]+erreur[:,1])/erreur.shape[0]
 print(np.sqrt(np.sum(erreur)))
-plt.scatter(Xt[:,0],Xt[:,1],c=erreur,cmap='jet')
+plt.scatter(Xt[:,0],Xt[:,1],c=np.log10(erreur),cmap='jet')
 plt.axis('square')
 plt.colorbar()
 
-plt.plot(x,y,c='green',linestyle='--')
-plt.plot(traj_pred[:,0],traj_pred[:,1],c='r',linestyle='--')
+plt.plot(x,y,c='green',linestyle='-')
+plt.plot(traj_pred_nu[:,0],traj_pred_nu[:,1],c='r',linestyle='-')
+plt.plot(traj_pred_u[:,0],traj_pred_u[:,1],c='b',linestyle='-')
 plt.axis('square')
+
+#%% apprentissage en parallèle de T sur chaque dimension
+Prediction = []
+Score = []
+Erreur = []
+method = 'raffinement'
+for iz in range(len(ZZ)):
+    #instantiate the network
+    mlp_reg = MLPRegressor(
+                           max_iter = 3000,activation = 'relu',
+                           solver = 'adam')
+    if method == 'raffinement':
+        data_in = np.stack((XX[iz],YY[iz]),-1)
+        data_out = ZZ[iz][:,iz]
+        
+    if method == 'uniform':
+        data_in,data_out = eq_uniform_data(XX[iz])
+        data_out = data_out[:,iz]
+        
+    #fit data
+    mlp_reg.fit(data_in,data_out)
+    #predict
+    z_pred = mlp_reg.predict(Xt)
+    Prediction.append(z_pred)
+    #score
+    u = ((y_exact[:,iz] - z_pred)** 2).sum()
+    v = ((y_exact[:,iz] - y_exact[:,iz].mean()) ** 2).sum()
+    score = 1-(u/v)
+    Score.append(score)
+    #erreur
+    err = np.log10(np.abs(z_pred-y_exact[:,iz]))
+    Erreur.append(err)
+    
+_,ax = plt.subplots(2,3)
+for i in range(3):
+    ax[0,i].scatter(Xt1.flatten(),Xt2.flatten(),c = Prediction[i],cmap = 'jet')
+    ax[0,i].axis('square')
+    ax[1,i].scatter(Xt1.flatten(),Xt2.flatten(),c = Erreur[i],cmap = 'jet')
+    ax[1,i].axis('square')
+    
+print(Score)

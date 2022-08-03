@@ -13,8 +13,7 @@ from scipy.signal import argrelextrema
 
 
 def f(X):
-    return 2*np.exp(-7*(X-8)**2) + np.exp(-0.8*(X-2)**2)
-    return np.exp(-0.5*(X-5)**2)
+    return np.sqrt(X)
 
 def emp_grad(f,xmin,xmax):
     Df = f(xmax)-f(xmin)
@@ -35,8 +34,7 @@ def crit_sequence(grid):
 
 def alpha_sequence(grid):
     res = crit_sequence(grid)
-    #return np.linspace(0,max(res),grid.size)
-    return np.linspace(0,res.mean(),grid.size)
+    return np.linspace(0,max(res),grid.size)
 
 def distrib_sequence(grid):
     alpha = alpha_sequence(grid)
@@ -65,6 +63,7 @@ def auto_threshold(grid):
 def iterate_mesh(mesh):
     new_mesh = [mesh[0]]
     alpha = auto_threshold(mesh)
+    alpha = 1
     print('alpha :',alpha)
     k = 0
     while k < mesh.size-2:
@@ -96,8 +95,8 @@ df_dx = d_dx(y)
 
 # adaptative grid
 
-p0 = 6
-niter = 4
+p0 = 4
+niter = 3
 
 grid = init_mesh(a,b,p0)
 

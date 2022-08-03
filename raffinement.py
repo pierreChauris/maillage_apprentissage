@@ -6,6 +6,7 @@ Created on Tue Jul 19 10:45:05 2022
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class Cell:
@@ -94,7 +95,14 @@ def coordinate(grid):
         X2.append(x2)
     return np.array(X1),np.array(X2)
 
-
+def plot_cell(cell):
+    x,y = cell.center
+    px,py = cell.size
+    plt.vlines(x = x-px/2, ymin = y-py/2, ymax = y+py/2,linewidth=1)
+    plt.vlines(x = x+px/2, ymin = y-py/2, ymax = y+py/2,linewidth=1)
+    plt.hlines(y = y-py/2, xmin = x-px/2, xmax = x+px/2,linewidth=1)
+    plt.hlines(y = y+py/2, xmin = x-px/2, xmax = x+px/2,linewidth=1)
+    
 def emp_grad(cell,f):
     x1,y1 = cell.center
     dx,dy = cell.size
@@ -153,7 +161,6 @@ def iterate_grid(grid,Z,smooth):
     Coeffs = coeffs(grid,Z,nx,ny)
     alpha,alphax,alphay,alpha1,alpha2,alpha3,d1,d2,d3 = auto_threshold(grid,Z,nx,ny,Coeffs)
     new_grid = grid.copy()
-    iso,cx,cy = 0,0,0
     for cell in grid:
         k = grid.index(cell)
         gx,gy = gradient(cell,nx,ny,Coeffs)
@@ -184,39 +191,37 @@ def iterate_grid(grid,Z,smooth):
         
             
         # raffinement uniquement sur x 
-        if gx > alphax and raffinement == 0:
-            C00,C01 = cell.split_x()
-            if cell in new_grid:
-                new_grid.remove(cell)
-            new_grid.insert(k,C01)
-            new_grid.insert(k,C00)
-            raffinement += 1
-            cx += 1
+        if max(alpha,alphax,alphay) == alphax:
+            if gx > alphax and raffinement == 0:
+                C00,C01 = cell.split_x()
+                if cell in new_grid:
+                    new_grid.remove(cell)
+                new_grid.insert(k,C01)
+                new_grid.insert(k,C00)
+                raffinement += 1
             
         # reffinement uniquement sur y 
-        if gy > alphay and raffinement == 0:
-            C00,C01 = cell.split_y()
-            if cell in new_grid:
-                new_grid.remove(cell)
-            new_grid.insert(k,C01)
-            new_grid.insert(k,C00)
-            raffinement += 1
-            cy += 1
+        if max(alpha,alphax,alphay) == alphay:
+            if gy > alphay and raffinement == 0:
+                C00,C01 = cell.split_y()
+                if cell in new_grid:
+                    new_grid.remove(cell)
+                new_grid.insert(k,C01)
+                new_grid.insert(k,C00)
+                raffinement += 1
         
         # raffinement iso
-        if np.sqrt(gx**2+gy**2) > alpha and raffinement == 0:
-            C00,C01,C10,C11 = cell.split_iso()
-            if cell in new_grid:
-                new_grid.remove(cell)
-            new_grid.insert(k,C11)
-            new_grid.insert(k,C10)
-            new_grid.insert(k,C01)
-            new_grid.insert(k,C00)
-            raffinement += 1
-            iso += 1
+        if max(alpha,alphax,alphay) == alpha:
+            if np.sqrt(gx**2+gy**2) > alpha and raffinement == 0:
+                C00,C01,C10,C11 = cell.split_iso()
+                if cell in new_grid:
+                    new_grid.remove(cell)
+                new_grid.insert(k,C11)
+                new_grid.insert(k,C10)
+                new_grid.insert(k,C01)
+                new_grid.insert(k,C00)
+                raffinement += 1
         
-
-    print(iso,cx,cy)     
     return new_grid
 
 
