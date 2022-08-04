@@ -124,3 +124,163 @@ plt.title('prédiction à partir du dataset raffiné')
 
 print('score uniforme :',score_uniforme)
 print('score raffine :',score_raffine)
+
+#%% régression paramétrique
+
+def f_param(theta,X,Y):
+    x1,y1,s1,x2,y2,s2 = theta
+    return np.exp(-1/s1*(X-x1)**2 - 1/s1*(Y-y1)**2) + np.exp(-1/s2*(X-x2)**2 - 1/s2*(Y-y2)**2)
+
+def dJ_dx1(theta,X,Y,Z):
+    x1,y1,s1,x2,y2,s2 = theta
+    dg_dx1 = -2/s1*(X-x1)*np.exp(-1/s1*(X-x1)**2 - 1/s1*(Y-y1)**2) 
+    arg = dg_dx1*(Z-f_param(theta,X,Y))
+    return np.sum(arg)/np.size(arg)
+
+
+def dJ_dy1(theta,X,Y,Z):
+    x1,y1,s1,x2,y2,s2 = theta
+    dg_dy1 = -2/s1*(Y-y1)*np.exp(-1/s1*(X-x1)**2 - 1/s1*(Y-y1)**2) 
+    arg = dg_dy1*(Z-f_param(theta,X,Y))
+    return np.sum(arg)/np.size(arg)
+
+
+def dJ_ds1(theta,X,Y,Z):
+    x1,y1,s1,x2,y2,s2 = theta
+    dg_ds1 = -((X-x1)**2 + (Y-y1)**2)/(s1**2)*np.exp(-1/s1*(X-x1)**2 - 1/s1*(Y-y1)**2) 
+    arg = dg_ds1*(Z-f_param(theta,X,Y))
+    return np.sum(arg)/np.size(arg)
+
+
+def dJ_dx2(theta,X,Y,Z):
+    x1,y1,s1,x2,y2,s2 = theta
+    dg_dx2 = -2/s2*(X-x2)*np.exp(-1/s2*(X-x2)**2 - 1/s2*(Y-y2)**2) 
+    arg = dg_dx2*(Z-f_param(theta,X,Y))
+    return np.sum(arg)/np.size(arg)
+
+
+def dJ_dy2(theta,X,Y,Z):
+    x1,y1,s1,x2,y2,s2 = theta
+    dg_dy2 = -2/s2*(Y-y2)*np.exp(-1/s2*(X-x2)**2 - 1/s2*(Y-y2)**2) 
+    arg = dg_dy2*(Z-f_param(theta,X,Y))
+    return np.sum(arg)/np.size(arg)
+
+
+def dJ_ds2(theta,X,Y,Z):
+    x1,y1,s1,x2,y2,s2 = theta
+    dg_ds2 = -((X-x2)**2 + (Y-y2)**2)/(s2**2)*np.exp(-1/s2*(X-x2)**2 - 1/s2*(Y-y2)**2)
+    arg = dg_ds2*(Z-f_param(theta,X,Y))
+    return np.sum(arg)/np.size(arg)
+
+
+def J_cost(theta,X,Y,Z):
+    arg = (Z-f_param(theta,X,Y))**2
+    return np.sum(arg)/(2*np.size(arg))
+
+def estimation(X,Y,Z,theta0,alpha,Nmax):
+    niter = 0
+    res = [theta0]
+    dJ = np.array([dJ_dx1(theta0,X,Y,Z),dJ_dy1(theta0,X,Y,Z),dJ_ds1(theta0,X,Y,Z),dJ_dx2(theta0,X,Y,Z),dJ_dy2(theta0,X,Y,Z),dJ_ds2(theta0,X,Y,Z)])
+    cost = [J_cost(theta0,X,Y,Z)]
+    
+    while J_cost(theta0,X,Y,Z) > 10**-4 and niter < Nmax:
+        dJ = np.array([dJ_dx1(theta0,X,Y,Z),dJ_dy1(theta0,X,Y,Z),dJ_ds1(theta0,X,Y,Z),dJ_dx2(theta0,X,Y,Z),dJ_dy2(theta0,X,Y,Z),dJ_ds2(theta0,X,Y,Z)])
+        theta0 = theta0 - alpha*dJ
+        niter += 1
+        res.append(theta0)
+        cost.append(J_cost(theta0,X,Y,Z))
+    
+    print('nombre d iterations :',niter)
+    print(J_cost(theta0,X,Y,Z))
+    res = np.array(res)
+    
+    return theta0,res,cost
+
+#%% données uniformes
+
+theta = np.array([3.7,3.7,2.5,6.3,6.3,2.5])
+
+geometry = [10,10,31,31,0,0]
+grid = init_grid(geometry)
+X_uni,Y_uni = coordinate(grid)
+Z_uni = f_param(theta,X_uni,Y_uni)
+# bruit = np.random.normal(0,0.5,Z_uni.size)
+# Z_uni = Z_uni + bruit
+
+plt.scatter(X_uni,Y_uni,c=Z_uni,cmap='jet')
+plt.axis('square')
+plt.colorbar()
+plt.title("données d'apprentissage uniformes")
+
+# algorithme du gradient
+
+alpha = np.array([0.1,0.1,0.1,0.1,0.1,0.1])
+theta0 = np.array([2,2,3,8,8,1])
+Nmax = 25000
+
+
+leg = ['x1','y1','s1','x2','y2','s2']
+
+thetaf_uni,res_uni,cost_uni = estimation(X_uni,Y_uni,Z_uni,theta0,alpha,Nmax)
+
+
+_,ax = plt.subplots(2,3,figsize=(10,5))
+for i in range(2):
+    for j in range(3):
+        ax[i,j].plot(res_uni[:,3*i+j])
+        ax[i,j].legend(leg[3*i+j])
+        ax[i,j].axhline(y=theta[3*i+j],c='r',ls='--')
+        
+#%% dataset raffiné
+theta = np.array([3.7,3.7,2.5,6.3,6.3,2.5])
+
+geometry = [10,10,15,15,0,0]
+grid = init_grid(geometry)
+X_nu,Y_nu = coordinate(grid)
+Z_nu = f_param(theta,X_nu,Y_nu)
+
+
+for _ in range(2):
+    grid = iterate_grid(grid,Z_nu,True)
+    X_nu,Y_nu = coordinate(grid)
+    Z_nu = f_param(theta,X_nu,Y_nu)
+    
+# bruit = np.random.normal(0,0.5,Z_nu.size)
+# Z_nu = Z_nu + bruit
+
+plt.scatter(X_nu,Y_nu,c=Z_nu,cmap='jet')
+plt.axis('square')
+plt.colorbar()
+plt.title("données d'apprentissage raffinées")
+
+thetaf_nu,res_nu,cost_nu = estimation(X_nu,Y_nu,Z_nu,theta0,alpha,Nmax)
+
+
+_,ax = plt.subplots(2,3,figsize=(10,5))
+for i in range(2):
+    for j in range(3):
+        ax[i,j].plot(res_nu[:,3*i+j])
+        ax[i,j].legend(leg[3*i+j])
+        ax[i,j].axhline(y=theta[3*i+j],c='r',ls='--')
+        
+#%% comparaison
+
+_,ax = plt.subplots(2,3,figsize=(15,10))
+for i in range(2):
+    for j in range(3):
+        ax[i,j].plot(res_uni[:,3*i+j],c='blue',label='uniforme')
+        ax[i,j].plot(res_nu[:,3*i+j],c='green',label='raffiné')
+        ax[i,j].set_title(leg[3*i+j])
+        ax[i,j].legend()
+        ax[i,j].axhline(y=theta[3*i+j],c='r',ls='--')
+        
+plt.figure()
+plt.plot(cost_uni,label='uniforme',c='blue')
+plt.plot(cost_nu,label='raffiné',c='green')
+plt.legend()
+
+plt.title('Evolution de la fonction de cout')
+
+    
+    
+    
