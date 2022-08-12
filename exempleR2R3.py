@@ -29,7 +29,7 @@ def eq_uniform_data(X_mesh):
     return mesh_uni,data_uni
 
 #%% Gération des données
-geometry = [2,2,10,10,-1,-1]
+geometry = [2,2,20,20,-1,-1]
 
 grid = init_grid(geometry)
 X,Y = coordinate(grid)
@@ -101,7 +101,7 @@ Xt = np.stack((Xt1,Xt2),-1)
 Xt = Xt.reshape(Nt*Nt,2)
 y_exact = T_direct(Xt1.flatten(),Xt2.flatten())
 
-axe = 1
+axe = 0
 
 #%% trajectoire de test
 theta = np.linspace(0,2*np.pi,Nt)
@@ -157,7 +157,7 @@ mlp_reg_uni.fit(mesh_uni,data_uni)
 #%% prediction
 y_pred_u = mlp_reg_uni.predict(Xt)
 y_pred_tr_u = mlp_reg_uni.predict(Ct)
-axes = [axe]
+axes = [2]
 u = ((y_exact[:,axes] - y_pred_u[:,axes])** 2).sum()
 v = ((y_exact[:,axes] - y_exact[:,axes].mean()) ** 2).sum()
 score = 1-(u/v)
@@ -214,7 +214,7 @@ Erreur = []
 method = 'raffinement'
 for iz in range(len(ZZ)):
     #instantiate the network
-    mlp_reg = MLPRegressor(
+    mlp_reg = MLPRegressor(hidden_layer_sizes=(50,10),
                            max_iter = 3000,activation = 'relu',
                            solver = 'adam')
     if method == 'raffinement':
@@ -223,6 +223,7 @@ for iz in range(len(ZZ)):
         
     if method == 'uniform':
         data_in,data_out = eq_uniform_data(XX[iz])
+        # data_in,data_out = eq_uniform_data(XX[axe])
         data_out = data_out[:,iz]
         
     #fit data
@@ -237,6 +238,7 @@ for iz in range(len(ZZ)):
     Score.append(score)
     #erreur
     err = np.log10(np.abs(z_pred-y_exact[:,iz]))
+
     Erreur.append(err)
     
 _,ax = plt.subplots(2,3)

@@ -1,14 +1,17 @@
+
+
 # -*- coding: utf-8 -*-
 """
 Created on Wed Aug  3 13:56:00 2022
 
 @author: pchauris
 
-Objectif : quantifier l'intérêt du raffinement de maillage sur l'apprentissage par réseau de neurone
+Objectif : quantifier l'intérêt du raffinement de maillage sur l'apprentissage par réseau de neurone et par modèle paramétrique
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
+from celluloid import Camera
 from sklearn import metrics
 from sklearn.preprocessing import StandardScaler
 from sklearn.neural_network import MLPRegressor
@@ -20,16 +23,16 @@ def f(X,Y):
     return np.exp(-0.4*(X-3.7)**2 - 0.4*(Y-3.7)**2) + np.exp(-0.4*(X-6.3)**2 - 0.4*(Y-6.3)**2)
 
 
-geometry = [10,10,50,50,0,0]
+geometry = [10,10,10,10,0,0]
 grid = init_grid(geometry)
 X,Y = coordinate(grid)
 
-# plt.scatter(X,Y,c=f(X,Y),cmap='jet',s=1)
-# # for cell in grid:
-# #     plot_cell(cell)
-# plt.axis('square')
-# plt.colorbar()
-# plt.title('transformation à apprendre')
+plt.scatter(X,Y,c=f(X,Y),cmap='jet',s=1)
+for cell in grid:
+    plot_cell(cell)
+plt.axis('square')
+plt.colorbar()
+plt.title('transformation à apprendre')
 
 #%% iterations de raffinement
 
@@ -38,11 +41,11 @@ for i in range(niter):
     grid = iterate_grid(grid, f(X,Y), False)
     X,Y = coordinate(grid)
     
-# plt.scatter(X,Y,c=f(X,Y),cmap='jet',s=1)
-# # for cell in grid:
-# #     plot_cell(cell)
-# plt.axis('square')
-# plt.colorbar()
+plt.scatter(X,Y,c=f(X,Y),cmap='jet',s=1)
+for cell in grid:
+    plot_cell(cell)
+plt.axis('square')
+plt.colorbar()
 
 print('taille de la grille :',len(grid))
 #%% données d'entrainement non uniforme
@@ -72,7 +75,7 @@ train_X_uni = scaler_uni.transform(train_X_uni)
 data_in = train_X_uni
 data_out = train_Z_uni
 # fit
-mlp_reg_uni = MLPRegressor(hidden_layer_sizes=(30,10),
+mlp_reg_uni = MLPRegressor(hidden_layer_sizes=(30,20),
                        max_iter = 1000,activation = 'relu',
                        solver = 'adam')
 
@@ -81,13 +84,13 @@ mlp_reg_uni.fit(data_in,data_out)
 data_in = train_X_nu
 data_out = train_Z_nu
 # fit
-mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(30,10),
+mlp_reg_nu = MLPRegressor(hidden_layer_sizes=(30,20),
                        max_iter = 1000,activation = 'relu',
                        solver = 'adam')
 
 mlp_reg_nu.fit(data_in,data_out)
 
-#%% dataset de test
+# dataset de test
 
 N_test = 200
 x_test = np.linspace(0,10,N_test)
@@ -111,16 +114,16 @@ score_raffine = 1-(u/v)
 
 #%% résultats
 
-plt.figure()
-plt.scatter(X_test,Y_test,c=Z_predict_uni,s=1,cmap='jet')
-plt.axis('square')
-plt.colorbar()
-plt.title('prédiction à partir du dataset uniforme')
-plt.figure()
-plt.scatter(X_test,Y_test,c=Z_predict_nu,s=1,cmap='jet')
-plt.axis('square')
-plt.colorbar()
-plt.title('prédiction à partir du dataset raffiné')
+fig,(ax1,ax2) = plt.subplots(1,2,figsize=(20,15))
+map1 = ax1.scatter(X_test,Y_test,c=Z_predict_uni,s=1,cmap='jet')
+ax1.axis('square')
+fig.colorbar(map1,ax=ax1,shrink=0.6)
+ax1.set_title('prédiction à partir du dataset uniforme')
+
+map2 = ax2.scatter(X_test,Y_test,c=Z_predict_nu,s=1,cmap='jet')
+ax2.axis('square')
+fig.colorbar(map2,ax=ax2,shrink=0.6)
+ax2.set_title('prédiction à partir du dataset raffiné')
 
 print('score uniforme :',score_uniforme)
 print('score raffine :',score_raffine)
@@ -177,13 +180,13 @@ def J_cost(theta,X,Y,Z):
     arg = (Z-f_param(theta,X,Y))**2
     return np.sum(arg)/(2*np.size(arg))
 
-def estimation(X,Y,Z,theta0,alpha,Nmax):
+def estimation(X,Y,Z,theta0,alpha,Nmax,epsilon):
     niter = 0
     res = [theta0]
     dJ = np.array([dJ_dx1(theta0,X,Y,Z),dJ_dy1(theta0,X,Y,Z),dJ_ds1(theta0,X,Y,Z),dJ_dx2(theta0,X,Y,Z),dJ_dy2(theta0,X,Y,Z),dJ_ds2(theta0,X,Y,Z)])
     cost = [J_cost(theta0,X,Y,Z)]
     
-    while J_cost(theta0,X,Y,Z) > 10**-4 and niter < Nmax:
+    while J_cost(theta0,X,Y,Z) > epsilon and niter < Nmax:
         dJ = np.array([dJ_dx1(theta0,X,Y,Z),dJ_dy1(theta0,X,Y,Z),dJ_ds1(theta0,X,Y,Z),dJ_dx2(theta0,X,Y,Z),dJ_dy2(theta0,X,Y,Z),dJ_ds2(theta0,X,Y,Z)])
         theta0 = theta0 - alpha*dJ
         niter += 1
@@ -191,7 +194,7 @@ def estimation(X,Y,Z,theta0,alpha,Nmax):
         cost.append(J_cost(theta0,X,Y,Z))
     
     print('nombre d iterations :',niter)
-    print(J_cost(theta0,X,Y,Z))
+    print('cout :',J_cost(theta0,X,Y,Z))
     res = np.array(res)
     
     return theta0,res,cost
@@ -207,22 +210,31 @@ Z_uni = f_param(theta,X_uni,Y_uni)
 # bruit = np.random.normal(0,0.5,Z_uni.size)
 # Z_uni = Z_uni + bruit
 
-plt.scatter(X_uni,Y_uni,c=Z_uni,cmap='jet')
-plt.axis('square')
-plt.colorbar()
-plt.title("données d'apprentissage uniformes")
 
 # algorithme du gradient
 
 alpha = np.array([0.1,0.1,0.1,0.1,0.1,0.1])
 theta0 = np.array([2,2,3,8,8,1])
 Nmax = 25000
-
+epsilon = 10**-5
 
 leg = ['x1','y1','s1','x2','y2','s2']
 
-thetaf_uni,res_uni,cost_uni = estimation(X_uni,Y_uni,Z_uni,theta0,alpha,Nmax)
+thetaf_uni,res_uni,cost_uni = estimation(X_uni,Y_uni,Z_uni,theta0,alpha,Nmax,epsilon)
 
+_,(ax1,ax2,ax3) = plt.subplots(1,3)
+
+ax1.scatter(X_uni,Y_uni,c=Z_uni,cmap='jet',s=5)
+ax1.axis('square')
+ax1.set_title("données d'apprentissage uniformes")
+
+ax2.scatter(X_uni,Y_uni,c=f_param(theta0,X_uni,Y_uni),cmap='jet',s=5)
+ax2.axis('square')
+ax2.set_title("état initial")
+
+ax3.scatter(X_uni,Y_uni,c=f_param(thetaf_uni,X_uni,Y_uni),cmap='jet',s=5)
+ax3.axis('square')
+ax3.set_title("état final")
 
 _,ax = plt.subplots(2,3,figsize=(10,5))
 for i in range(2):
@@ -232,7 +244,7 @@ for i in range(2):
         ax[i,j].axhline(y=theta[3*i+j],c='r',ls='--')
         
 #%% dataset raffiné
-theta = np.array([3.7,3.7,2.5,6.3,6.3,2.5])
+# theta = np.array([3.7,3.7,2.5,6.3,6.3,2.5])
 
 geometry = [10,10,15,15,0,0]
 grid = init_grid(geometry)
@@ -248,13 +260,23 @@ for _ in range(2):
 # bruit = np.random.normal(0,0.5,Z_nu.size)
 # Z_nu = Z_nu + bruit
 
-plt.scatter(X_nu,Y_nu,c=Z_nu,cmap='jet')
-plt.axis('square')
-plt.colorbar()
-plt.title("données d'apprentissage raffinées")
 
-thetaf_nu,res_nu,cost_nu = estimation(X_nu,Y_nu,Z_nu,theta0,alpha,Nmax)
 
+thetaf_nu,res_nu,cost_nu = estimation(X_nu,Y_nu,Z_nu,theta0,alpha,Nmax,epsilon)
+
+_,(ax1,ax2,ax3) = plt.subplots(1,3)
+
+ax1.scatter(X_nu,Y_nu,c=Z_nu,cmap='jet',s=5)
+ax1.axis('square')
+ax1.set_title("données d'apprentissage raffinées")
+
+ax2.scatter(X_nu,Y_nu,c=f_param(theta0,X_nu,Y_nu),cmap='jet',s=5)
+ax2.axis('square')
+ax2.set_title("état initial")
+
+ax3.scatter(X_uni,Y_uni,c=f_param(thetaf_nu,X_uni,Y_uni),cmap='jet',s=5)
+ax3.axis('square')
+ax3.set_title("état final")
 
 _,ax = plt.subplots(2,3,figsize=(10,5))
 for i in range(2):
@@ -274,13 +296,21 @@ for i in range(2):
         ax[i,j].legend()
         ax[i,j].axhline(y=theta[3*i+j],c='r',ls='--')
         
-plt.figure()
-plt.plot(cost_uni,label='uniforme',c='blue')
-plt.plot(cost_nu,label='raffiné',c='green')
-plt.legend()
+# plt.figure()
+# plt.plot(cost_uni,label='uniforme',c='blue')
+# plt.plot(cost_nu,label='raffiné',c='green')
+# plt.legend()
 
-plt.title('Evolution de la fonction de cout')
+# plt.title('Evolution de la fonction de cout')
 
-    
-    
-    
+#%% animation
+
+fig = plt.figure()
+camera = Camera(fig)
+for i in range(0,3000,10):
+    print(i)
+    plt.scatter(X_uni,Y_uni,c=f_param(res_nu[i,:],X_uni,Y_uni),cmap='jet',s=20)
+    plt.axis('square')
+    camera.snap()
+animation = camera.animate(blit=False, interval=1)
+animation.save('apprentissage4.gif', writer = 'imagemagick')
