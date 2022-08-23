@@ -29,16 +29,23 @@ def eq_uniform_data(X_mesh):
     return mesh_uni,data_uni
 
 #%% Gération des données
-geometry = [2,2,20,20,-1,-1]
+geometry = [2,2,30,30,-1,-1]
 
 grid = init_grid(geometry)
 X,Y = coordinate(grid)
 Z = T_direct(X,Y)
 
-_,ax = plt.subplots(1,3)
-for i in range(Z.shape[1]):
-    ax[i].scatter(X,Y,c = Z[:,i],s=5,cmap = 'jet')
+titres_T = [r'$T_1(x)$',
+            r'$T_2(x)$',
+            r'$T_3(x)$']
+fig,ax = plt.subplots(1,3,figsize=(17,4))
+for i in range(3):
+    pc1 = ax[i].scatter(X,Y,c=Z[:,i],cmap = 'jet')
     ax[i].axis('square')
+    ax[i].set_xlabel(r'$x1$')
+    ax[i].set_ylabel(r'$x2$')
+    ax[i].set_title(titres_T[i])
+    fig.colorbar(pc1,ax=ax[i])
 
 
 #%% Raffinement des données
@@ -221,7 +228,7 @@ for iz in range(len(ZZ)):
         data_in = np.stack((XX[iz],YY[iz]),-1)
         data_out = ZZ[iz][:,iz]
         
-    if method == 'uniform':
+    if method == 'uniforme':
         data_in,data_out = eq_uniform_data(XX[iz])
         # data_in,data_out = eq_uniform_data(XX[axe])
         data_out = data_out[:,iz]
@@ -241,11 +248,17 @@ for iz in range(len(ZZ)):
 
     Erreur.append(err)
     
-_,ax = plt.subplots(2,3)
+titres_T = [r'$\hat T_1(x)$    Score : %f'%Score[0],
+            r'$\hat T_2(x)$    Score : %f'%Score[1],
+            r'$\hat T_3(x)$    Score : %f'%Score[2]]
+
+_,ax = plt.subplots(1,3,figsize=(17,4))
 for i in range(3):
-    ax[0,i].scatter(Xt1.flatten(),Xt2.flatten(),c = Prediction[i],cmap = 'jet')
-    ax[0,i].axis('square')
-    ax[1,i].scatter(Xt1.flatten(),Xt2.flatten(),c = Erreur[i],cmap = 'jet')
-    ax[1,i].axis('square')
-    
-print(Score)
+    pc1 = ax[i].scatter(Xt1.flatten(),Xt2.flatten(),c = Prediction[i],cmap = 'jet')
+    ax[i].axis('square')
+    ax[i].set_xlabel(r'$x1$')
+    ax[i].set_ylabel(r'$x2$')
+    ax[i].set_title(titres_T[i])
+    fig.colorbar(pc1,ax=ax[i])
+
+print(method,' :',Score)

@@ -113,7 +113,7 @@ def emp_grad(cell):
 def crit_sequence(grid,Z,nx,ny,Coeffs):
     iso,vert,horiz = [],[],[]
     for cell in grid:
-        gx,gy = gradient(cell,nx,ny,Coeffs)
+        gx,gy = gradient(cell,nx,ny,Coeffs,4)
         iso.append(np.sqrt(gx**2+gy**2))
         vert.append(np.abs(gx))
         horiz.append(np.abs(gy))
@@ -152,13 +152,13 @@ def iterate_grid(grid,Z,smooth):
     # nombre de surrogate models optimal pour des surrogates models de degré 3
     nx = int(np.sqrt(len(grid))/5)
     ny = int(np.sqrt(len(grid))/5)
-    Coeffs = coeffs(grid,Z,nx,ny)
+    Coeffs = coeffs(grid,Z,nx,ny,4)
     alpha,alphax,alphay = auto_threshold(grid,Z,nx,ny,Coeffs)
     new_grid = grid.copy()
     
     for cell in grid:
         k = grid.index(cell)
-        gx,gy = gradient(cell,nx,ny,Coeffs)
+        gx,gy = gradient(cell,nx,ny,Coeffs,4)
         
         raffinement = 0        
         
@@ -362,7 +362,8 @@ plt.scatter(X,Y,c = exact_grad,cmap = 'jet')
 plt.colorbar()
 plt.title('gradient exact')
 #%%
-N = 40
+N = 30
+degre = 4
 grid = init_grid([10,10,N,N,0,0])
 X,Y = coordinate(grid)
 Z = f(X,Y)
@@ -372,9 +373,9 @@ for i in range(4,15):
     grad = []
     exact_grad = []
     nx,ny = i,i
-    Coeffs = coeffs(grid,Z,nx,ny)
+    Coeffs = coeffs(grid,Z,nx,ny,degre)
     for cell in grid:
-        gx,gy = gradient(cell,nx,ny,Coeffs)
+        gx,gy = gradient(cell,nx,ny,Coeffs,degre)
         grad.append(np.sqrt(gx**2+gy**2))
         gx,gy = emp_grad(cell)
         exact_grad.append(np.sqrt(gx**2+gy**2))
@@ -395,9 +396,9 @@ plt.title('erreur sur le gradient en fonction du nombre de surrogate models N = 
 plt.plot([i for i in range(4,15)],err_d2,'-o',color='blue')
 plt.plot([i for i in range(4,15)],err_d3,'-o',color='orange')
 plt.plot([i for i in range(4,15)],err_d4,'-o',color='green')
-plt.axvline(x = 8,linestyle='--',color = 'green')
-plt.axvline(x = 10,linestyle='--',color = 'orange')
-plt.axvline(x = 13,linestyle='--',color = 'blue')
+plt.axvline(x = N//5,linestyle='--',color = 'green')
+plt.axvline(x = N//4,linestyle='--',color = 'orange')
+plt.axvline(x = N//3,linestyle='--',color = 'blue')
 
 plt.legend(['degré 2','degré 3','degré 4'])
 plt.xlabel('nombre de surrogate models par axe')

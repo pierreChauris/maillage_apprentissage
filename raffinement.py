@@ -103,14 +103,6 @@ def plot_cell(cell):
     plt.hlines(y = y-py/2, xmin = x-px/2, xmax = x+px/2,linewidth=1)
     plt.hlines(y = y+py/2, xmin = x-px/2, xmax = x+px/2,linewidth=1)
     
-def emp_grad(cell,f):
-    x1,y1 = cell.center
-    dx,dy = cell.size
-    x0,y0 = x1 - dx/2 , y1 - dy/2
-    Dfx = f(x0+dx,y1) - f(x0,y1)
-    Dfy = f(x1,y0+dy) - f(x1,y0)
-    return np.abs(Dfx/dx),np.abs(Dfy/dy)
-
 
 def crit_sequence(grid,Z,nx,ny,Coeffs):
     iso,vert,horiz = [],[],[]
@@ -191,24 +183,24 @@ def iterate_grid(grid,Z,smooth):
         
             
         # raffinement uniquement sur x 
-        if max(alpha,alphax,alphay) == alphax:
-            if gx > alphax and raffinement == 0:
-                C00,C01 = cell.split_x()
-                if cell in new_grid:
-                    new_grid.remove(cell)
-                new_grid.insert(k,C01)
-                new_grid.insert(k,C00)
-                raffinement += 1
+        # if max(alpha,alphax,alphay) == alphax:
+        if gx > alphax and raffinement == 0:
+            C00,C01 = cell.split_x()
+            if cell in new_grid:
+                new_grid.remove(cell)
+            new_grid.insert(k,C01)
+            new_grid.insert(k,C00)
+            raffinement += 1
             
         # reffinement uniquement sur y 
-        if max(alpha,alphax,alphay) == alphay:
-            if gy > alphay and raffinement == 0:
-                C00,C01 = cell.split_y()
-                if cell in new_grid:
-                    new_grid.remove(cell)
-                new_grid.insert(k,C01)
-                new_grid.insert(k,C00)
-                raffinement += 1
+        # if max(alpha,alphax,alphay) == alphay:
+        if gy > alphay and raffinement == 0:
+            C00,C01 = cell.split_y()
+            if cell in new_grid:
+                new_grid.remove(cell)
+            new_grid.insert(k,C01)
+            new_grid.insert(k,C00)
+            raffinement += 1
         
         # raffinement iso
         if max(alpha,alphax,alphay) == alpha:
@@ -226,28 +218,26 @@ def iterate_grid(grid,Z,smooth):
 
 
 def split_grid(grid,Z,nx,ny,ix,iy):
-    "return the sub grid of index (ix,iy) from the grid divided in nx time ny regions"
-    sub_grid = []
-    sub_Z = []
-    for cell in grid:
-        ind = grid.index(cell)
-        x,y = cell.center
-        Lx,Ly = cell.geometry[0:2]
-        Ox,Oy = cell.geometry[4:6]
-        if ix*Lx/nx+Ox < x < (ix+1)*Lx/nx+Ox and iy*Ly/ny+Oy < y < (iy+1)*Ly/ny+Oy:
-            sub_grid.append(cell)
-            sub_Z.append(Z[ind])
-    return sub_grid,sub_Z
+    "calcule le masque correspondant au surrogate ix iy et retourne les données du surrogate"
+    X,Y = coordinate(grid)
+    Lx,Ly = grid[0].geometry[0:2]
+    Ox,Oy = grid[0].geometry[4:6]
+    Ax = (ix*Lx/nx+Ox)*np.ones(X.size)
+    Bx = ((ix+1)*Lx/nx+Ox)*np.ones(X.size)
+    Ay = (iy*Ly/ny+Oy)*np.ones(Y.size)
+    By = ((iy+1)*Ly/ny+Oy)*np.ones(Y.size)
+    
+    mask = (np.less(Ax,X) & np.less(X,Bx)) & (np.less(Ay,Y) & np.less(Y,By))
+    mask = ~mask
+    return np.ma.masked_array(X,mask).compressed(),np.ma.masked_array(Y,mask).compressed(),np.ma.masked_array(Z,mask).compressed()
 
-
-def surr_model(sub_grid,sub_Z):
-    "return the array of coefficients of the polynomial model fit over sub_grid"
-    X,Y = coordinate(sub_grid)
+def surr_model(X,Y,Z):
+    "return the array of coefficients of the polynomial model P such that Z = P(X,Y)"
     # degré 4
     A = np.stack((X**4,Y*X**3,(X*Y)**2,X*Y**3,Y**4,X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
     # resolution du système
     A_star = np.linalg.pinv(A)
-    param = np.dot(A_star,sub_Z)
+    param = np.dot(A_star,Z)
     return param
 
 
@@ -256,8 +246,8 @@ def coeffs(grid,Z,nx,ny):
     Coeffs = []
     for iy in range(ny):
         for ix in range(nx):
-            sub_grid,sub_Z = split_grid(grid,Z,nx,ny,ix,iy)
-            param = surr_model(sub_grid,sub_Z)
+            subX,subY,subZ = split_grid(grid,Z,nx,ny,ix,iy)
+            param = surr_model(subX,subY,subZ)
             Coeffs.append(param)
     return Coeffs
 

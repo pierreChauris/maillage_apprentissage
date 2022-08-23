@@ -34,7 +34,7 @@ def dT_dz(x1,x2):
         - par la formule analytique pour un T* choisi 
         - par une inverse à gauche sur dT_dx
         - par une approximation numérique : surrogate models
-    Dans un premier temps, testons avec l'expression analytique pour T* = z1z2,z1z2
+    Dans un premier temps, testons avec l'expression analytique pour T* = z1z2,z1z3
     """
     return np.array([z2,z1,np.zeros(z1.size),z3,np.zeros(z1.size),z1]).T
 
@@ -151,13 +151,11 @@ def plot_cell(cell):
     
 
 def crit_sequence(grid,Z,nx,ny,Coeffs):
-    # X,Y = coordinate(grid)
-    # gz1 = dT_dz(X,Y)[:,3*axe]
-    # gz2 = dT_dz(X,Y)[:,1+3*axe]
-    # gz3 = dT_dz(X,Y)[:,2+3*axe]
-    # return np.sqrt(gz1**2 + gz2**2 + gz3**2)
-    return gradient(grid,Z,nx,ny,Coeffs)
-
+    grad = gradient(grid,Z,nx,ny,Coeffs)
+    g1 = grad[:,0]
+    g2 = grad[:,1]
+    g3 = grad[:,2]
+    return np.sqrt(g1**2+g2**2+g3**2)
 
 def alpha_sequence(grid,Z,nx,ny,Coeffs):
     res = crit_sequence(grid,Z,nx,ny,Coeffs)
@@ -210,27 +208,34 @@ def iterate_grid(grid,Z,axe):
     return new_grid
 
 def split_grid(grid,Z,nx,ny,ix,iy):
-    "return the sub grid of index (ix,iy) from the grid divided in nx time ny regions"
-    sub_grid = []
-    sub_Z = []
-    for cell in grid:
-        ind = grid.index(cell)
-        x,y = cell.center
-        Lx,Ly = cell.geometry[0:2]
-        Ox,Oy = cell.geometry[4:6]
-        if ix*Lx/nx+Ox < x < (ix+1)*Lx/nx+Ox and iy*Ly/ny+Oy < y < (iy+1)*Ly/ny+Oy:
-            sub_grid.append(cell)
-            sub_Z.append(Z[ind])
-    return sub_grid,np.array(sub_Z)
+    "calcule le masque correspondant au surrogate ix iy et retourne les données du surrogate"
+    X,Y = coordinate(grid)
+    Z1,Z2,Z3 = Z[:,0],Z[:,1],Z[:,2]
+    Lx,Ly = grid[0].geometry[0:2]
+    Ox,Oy = grid[0].geometry[4:6]
+    Ax = (ix*Lx/nx+Ox)*np.ones(X.size)
+    Bx = ((ix+1)*Lx/nx+Ox)*np.ones(X.size)
+    Ay = (iy*Ly/ny+Oy)*np.ones(Y.size)
+    By = ((iy+1)*Ly/ny+Oy)*np.ones(Y.size)
+    
+    mask = (np.less(Ax,X) & np.less(X,Bx)) & (np.less(Ay,Y) & np.less(Y,By))
+    mask = ~mask
+    subX = np.ma.masked_array(X,mask).compressed()
+    subY = np.ma.masked_array(Y,mask).compressed()
+    subZ1 = np.ma.masked_array(Z1,mask).compressed()
+    subZ2 = np.ma.masked_array(Z2,mask).compressed()
+    subZ3 = np.ma.masked_array(Z3,mask).compressed()
+
+    return np.stack((subX,subY),-1),np.stack((subZ1,subZ2,subZ3),-1)
 
 
-def surr_model(sub_grid,sub_Z,axe):
-    "return the array of coefficients of the polynomial model fit over sub_grid"
-    X = coordinate(sub_grid)[axe]
-    Z1,Z2,Z3 = sub_Z[:,0],sub_Z[:,1],sub_Z[:,2]
+def surr_model(X,Z,axe):
+    "return the array of coefficients of the polynomial model P such that X[axe] = P(Z)"
+    X = X[:,axe]
+    Z1,Z2,Z3 = Z[:,0],Z[:,1],Z[:,2]
     # degré 1
     # A = np.stack((Z1,Z2,Z3,np.ones(Z1.shape)),-1)
-    # degré 2
+    # degré 3
     A = np.stack((Z1**3,Z2**3,Z3**3,Z1**2,Z2**2,Z3**2,Z1*Z2,Z1*Z3,Z2*Z3,Z1,Z2,Z3,np.ones(Z1.size),Z1*Z2*Z3),-1)
     # resolution du système
     A_star = np.linalg.pinv(A)
@@ -250,7 +255,7 @@ def coeffs(grid,Z,axe,nx,ny):
 
 
 def gradient(grid,Z,nx,ny,Coeffs):
-    "calcule dT*_dz(T(x))"
+    "calcule dT1*_dz(T(x)) ou dT1*_dz(T(x)) dépendant de Coeffs avec Coeffs calculés pour X1 = P(Z1,Z2,Z3) ou X2 = P(Z1,Z2,Z3)"
     grad =  []
     Lx,Ly = grid[0].geometry[0:2]
     Ox,Oy = grid[0].geometry[4:6]
@@ -262,7 +267,7 @@ def gradient(grid,Z,nx,ny,Coeffs):
         #degré 1
         # a1,a2,a3,a4 = Coeffs[iy*nx+ix]
         # g1,g2,g3 = a1,a2,a3
-        # degré 2
+        # degré 3
         [a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14] = Coeffs[iy*nx+ix]
         g1 = 3*a1*z1**2+2*a4*z1+a7*z2+a8*z3+a10+a14*z2*z3
         g2 = 3*a2*z2**2+2*a5*z2+a7*z1+a9*z3+a11+a14*z1*z3
@@ -273,7 +278,7 @@ def gradient(grid,Z,nx,ny,Coeffs):
 
 #%% gradient analytique
 
-geometry = [2,2,50,50,-1,-1]
+geometry = [2,2,40,40,-1,-1]
 grid = init_grid(geometry)
 X,Y = coordinate(grid)
 
@@ -296,11 +301,22 @@ pcm2 = ax2.scatter(X,Y,c=dZ2,cmap='jet')
 ax2.axis('square')
 fig.colorbar(pcm2,ax=ax2,shrink=0.6)
 
-fig,ax = plt.subplots(2,3)
+titres_T = [r'$T_1(x)$',r'$T_2(x)$',r'$T_3(x)$']
+
+titres_dTdx = [r'$\frac{dT_1}{dx_1}(x)$',r'$\frac{dT_1}{dx_2}(x)$',r'$\frac{dT_2}{dx_1}(x)$',
+          r'$\frac{dT_2}{dx_2}(x)$',r'$\frac{dT_3}{dx_1}(x)$',r'$\frac{dT_3}{dx_2}(x)$']
+
+titres_dTdz = [r'$\frac{dT_1*}{dz_1}(T(x))$',r'$\frac{dT_1*}{dz_2}(T(x))$',r'$\frac{dT_1*}{dz_3}(T(x))$',
+          r'$\frac{dT_2*}{dz_1}(T(x))$',r'$\frac{dT_2*}{dz_2}(T(x))$',r'$\frac{dT_2*}{dz_3}(T(x))$']
+
+fig,ax = plt.subplots(2,3,figsize=(20,12))
 for i in range(6):
     pcm = ax[i//3,i%3].scatter(X,Y,c=dZ[:,i],cmap='jet')
     ax[i//3,i%3].axis('square')
-    fig.colorbar(pcm,ax=ax[i//3,i%3],shrink=0.6)
+    ax[i//3,i%3].set_xlabel(r'$x1$')
+    ax[i//3,i%3].set_ylabel(r'$x2$')
+    ax[i//3,i%3].set_title(titres_dTdz[i])
+    fig.colorbar(pcm,ax=ax[i//3,i%3])
 
 #%% données de KKL
 
@@ -310,11 +326,15 @@ grid = init_grid(geometry)
 X,Y = coordinate(grid)
 
 data = pd.read_excel('donnees.xlsx').to_numpy()
-# im,ax = plt.subplots(1,3,figsize=(15,15))
-# for i in range(3):
-#     ax[i].scatter(data[:,0],data[:,1],c = data[:,2+i],cmap='jet')
-#     ax[i].axis('square')
-# plt.show()
+im,ax = plt.subplots(1,3,figsize=(15,5))
+for i in range(3):
+    pcm = ax[i].scatter(data[:,0],data[:,1],c = data[:,2+i],cmap='jet')
+    ax[i].set_xlabel(r'$x1$')
+    ax[i].set_ylabel(r'$x2$')
+    ax[i].set_title(titres_T[i])
+    ax[i].axis('square')
+    im.colorbar(pcm,ax=ax[i])
+plt.show()
 
 nx,ny = 9,9
 Z = data[:,2:5]
@@ -328,42 +348,51 @@ print('grad1')
 grad2 = gradient(grid,Z,nx,ny,Coeff2)
 print('grad2')
 
-fig,ax = plt.subplots(2,3,figsize=(20,10))
+fig,ax = plt.subplots(2,3,figsize=(20,12))
 
 for i in range(3):
     pcm1 = ax[0,i].scatter(data[:,0],data[:,1],c=grad1[:,i],cmap='jet')
-    ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdz[i])
     fig.colorbar(pcm1,ax=ax[0,i])
     
     pcm1 = ax[1,i].scatter(data[:,0],data[:,1],c=grad2[:,i],cmap='jet')
     ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdz[i+3])
     fig.colorbar(pcm1,ax=ax[1,i])
     
-#%% calcul de dT_dx par surrogates models 
+#%% calcul de dT_dx par surrogates models puis de dT*_dz par inversion
 
-def split_grid2(grid,Z,nx,ny,ix,iy):
-    "return the sub grid of index (ix,iy) from the grid divided in nx time ny regions"
-    sub_grid = []
-    sub_Z = []
-    for cell in grid:
-        ind = grid.index(cell)
-        x,y = cell.center
-        Lx,Ly = cell.geometry[0:2]
-        Ox,Oy = cell.geometry[4:6]
-        if ix*Lx/nx+Ox < x < (ix+1)*Lx/nx+Ox and iy*Ly/ny+Oy < y < (iy+1)*Ly/ny+Oy:
-            sub_grid.append(cell)
-            sub_Z.append(Z[ind])
-    return sub_grid,sub_Z
+def split_grid2(grid,Zi,nx,ny,ix,iy):
+    "calcule le masque correspondant au surrogate ix iy et retourne les données du surrogate"
+    X,Y = coordinate(grid)
+    Lx,Ly = grid[0].geometry[0:2]
+    Ox,Oy = grid[0].geometry[4:6]
+    Ax = (ix*Lx/nx+Ox)*np.ones(X.size)
+    Bx = ((ix+1)*Lx/nx+Ox)*np.ones(X.size)
+    Ay = (iy*Ly/ny+Oy)*np.ones(Y.size)
+    By = ((iy+1)*Ly/ny+Oy)*np.ones(Y.size)
+    
+    mask = (np.less(Ax,X) & np.less(X,Bx)) & (np.less(Ay,Y) & np.less(Y,By))
+    mask = ~mask
+    subX = np.ma.masked_array(X,mask).compressed()
+    subY = np.ma.masked_array(Y,mask).compressed()
+    subZi = np.ma.masked_array(Zi,mask).compressed()
+
+    return np.stack((subX,subY),-1),subZi
 
 
-def surr_model2(sub_grid,sub_Z):
+def surr_model2(sub_grid,sub_Zi):
     "return the array of coefficients of the polynomial model fit over sub_grid"
-    X,Y = coordinate(sub_grid)
+    X,Y = sub_grid[:,0],sub_grid[:,1]
     # degré 4
     A = np.stack((X**4,Y*X**3,(X*Y)**2,X*Y**3,Y**4,X*X*X,X*X*Y,X*Y*Y,Y*Y*Y,X*X,X*Y,Y*Y,X,Y,np.ones(X.size)),-1)
     # resolution du système
     A_star = np.linalg.pinv(A)
-    param = np.dot(A_star,sub_Z)
+    param = np.dot(A_star,sub_Zi)
     return param
 
 
@@ -393,7 +422,7 @@ def gradient2(cell,nx,ny,Coeffs):
 geometry = [2,2,50,50,-1,-1]
 grid = init_grid(geometry)
 X,Y = coordinate(grid)
-nx,ny = 5,5
+nx,ny = 10,10
 Coeff1 = coeffs2(grid,data[:,2],nx,ny)
 Coeff2 = coeffs2(grid,data[:,3],nx,ny)
 Coeff3 = coeffs2(grid,data[:,4],nx,ny)
@@ -405,18 +434,27 @@ for cell in grid:
     
 dTdx1,dTdx2,dTdx3 = np.array(dTdx1),np.array(dTdx2),np.array(dTdx3)
 
-fig,ax = plt.subplots(3,2)
+fig,ax = plt.subplots(3,2,figsize=(12,20))
 for i in range(2):
     pc1 = ax[0,i].scatter(X,Y,c=dTdx1[:,i],cmap='jet')
     ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdx[i])
     fig.colorbar(pc1,ax=ax[0,i])
     
     pc2 = ax[1,i].scatter(X,Y,c=dTdx2[:,i],cmap='jet')
     ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdx[i+2])
     fig.colorbar(pc2,ax=ax[1,i])
     
     pc3 = ax[2,i].scatter(X,Y,c=dTdx3[:,i],cmap='jet')
     ax[2,i].axis('square')
+    ax[2,i].set_xlabel(r'$x1$')
+    ax[2,i].set_ylabel(r'$x2$')
+    ax[2,i].set_title(titres_dTdx[i+4])
     fig.colorbar(pc3,ax=ax[2,i])
 
 dTdx = np.stack((dTdx1,dTdx2,dTdx3),-1)
@@ -427,25 +465,32 @@ for i in range(dTdx.shape[0]):
     dTdz.append(dz)
 dTdz = np.array(dTdz)
 
-fig,ax = plt.subplots(2,3,figsize=(20,10))
+fig,ax = plt.subplots(2,3,figsize=(20,12))
 
 for i in range(3):
     pcm1 = ax[0,i].scatter(X,Y,c=dTdz[:,i,0],cmap='jet')
     ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdz[i])
     fig.colorbar(pcm1,ax=ax[0,i])
     
     pcm1 = ax[1,i].scatter(X,Y,c=dTdz[:,i,1],cmap='jet')
     ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdz[i+3])
     fig.colorbar(pcm1,ax=ax[1,i])
     
-#%% calculs de dT*_dz par surrogate models
-geometry = [2,2,50,50,-1,-1]
+#%% calcul de dT*_dz par surrogate models
+geometry = [2,2,40,40,-1,-1]
 grid = init_grid(geometry)
 X1,X2 = coordinate(grid)
 Z1,Z2,Z3 = T_direct(X1,X2)
 Z = np.stack((Z1,Z2,Z3),-1)
 
-nx,ny = 8,8
+nx,ny = 5,5
+
 Coeff1 = coeffs(grid,Z,0,nx,ny)
 print('coeff1')
 Coeff2 = coeffs(grid,Z,1,nx,ny)
@@ -455,6 +500,8 @@ grad1 = gradient(grid,Z,nx,ny,Coeff1)
 print('gradient1')
 grad2 = gradient(grid,Z,nx,ny,Coeff2)
 print('gradient2')
+
+dTdz_surrogate = np.stack((grad1,grad2),-2)
 
 fig,(ax1,ax2) = plt.subplots(1,2)
 
@@ -466,52 +513,111 @@ pcm2 = ax2.scatter(X1,X2,c=np.sqrt(grad2[:,0]**2+grad2[:,1]**2+grad2[:,2]**2),cm
 ax2.axis('square')
 fig.colorbar(pcm2,ax=ax2,shrink=0.6)
 
-fig,ax = plt.subplots(2,3)
+
+fig,ax = plt.subplots(2,3,figsize=(20,12))
 
 for i in range(3):
-    pcm1 = ax[0,i].scatter(X1,X2,c=grad1[:,i],cmap='jet')
+    pcm1 = ax[0,i].scatter(X1,X2,c=dTdz_surrogate[:,0,i],cmap='jet')
     ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdz[i])
     fig.colorbar(pcm1,ax=ax[0,i])
     
-    pcm1 = ax[1,i].scatter(X1,X2,c=grad2[:,i],cmap='jet')
+    pcm1 = ax[1,i].scatter(X1,X2,c=dTdz_surrogate[:,1,i],cmap='jet')
     ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdz[i+3])
     fig.colorbar(pcm1,ax=ax[1,i])
+    
+#%% taille optimale des surrogate models
 
+erreur = []
+Nx = np.arange(2,8)
+for nx in Nx:
+    Coeff1 = coeffs(grid,Z,0,nx,nx)
+    Coeff2 = coeffs(grid,Z,1,nx,nx)
+    grad1 = gradient(grid,Z,nx,nx,Coeff1)
+    grad2 = gradient(grid,Z,nx,nx,Coeff2)
+    norme1 = np.sqrt(grad1[:,0]**2+grad1[:,1]**2+grad1[:,2]**2)
+    norme2 = np.sqrt(grad2[:,0]**2+grad2[:,1]**2+grad2[:,2]**2)
+    erreur.append(np.linalg.norm(norme1-dZ1)+np.linalg.norm(norme2-dZ2))
+    
+plt.plot(Nx,erreur,'-o')
+#%%
+plt.figure()
+plt.scatter(Z1,Z2,c=dTdz_surrogate[:,0,0],cmap='jet')
+plt.colorbar()
 #%% calcul de dT_dx
 
 dTdx = dT_dx(X1,X2)
 
-fig,ax = plt.subplots(3,2)
+fig,ax = plt.subplots(3,2,figsize=(12,18))
 
 for i in range(2):
     pcm1 = ax[0,i].scatter(X1,X2,c=dTdx[0,i,:],cmap='jet')
     ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdx[i])
     fig.colorbar(pcm1,ax=ax[0,i])
     
     pcm1 = ax[1,i].scatter(X1,X2,c=dTdx[1,i,:],cmap='jet')
     ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdx[i])
     fig.colorbar(pcm1,ax=ax[1,i])
     
     pcm1 = ax[2,i].scatter(X1,X2,c=dTdx[2,i,:],cmap='jet')
     ax[2,i].axis('square')
+    ax[2,i].set_xlabel(r'$x1$')
+    ax[2,i].set_ylabel(r'$x2$')
+    ax[2,i].set_title(titres_dTdx[i])
     fig.colorbar(pcm1,ax=ax[2,i])
 
+"test de dT*_dz_surrogate * dT_dx = Identité"
+i = 23
+print(np.dot(dTdz_surrogate[i,:,:],dTdx[:,:,i]))
+#test correct
 #%% calcul de dT*_dz par la formule d'inversion
 
-dTdz = dT_dz2(X1,X2)
+dTdz_inversion = dT_dz2(X1,X2)
 
-fig,ax = plt.subplots(2,3)
+fig,(ax1,ax2) = plt.subplots(1,2)
+
+pcm1 = ax1.scatter(X1,X2,c=np.sqrt(dTdz_inversion[:,0,0]**2+dTdz_inversion[:,0,1]**2+dTdz_inversion[:,0,2]**2),cmap='jet')
+ax1.axis('square')
+fig.colorbar(pcm1,ax=ax1,shrink=0.6)
+
+pcm2 = ax2.scatter(X1,X2,c=np.sqrt(dTdz_inversion[:,1,0]**2+dTdz_inversion[:,1,1]**2+dTdz_inversion[:,1,2]**2),cmap='jet')
+ax2.axis('square')
+fig.colorbar(pcm2,ax=ax2,shrink=0.6)
+
+fig,ax = plt.subplots(2,3,figsize=(20,12))
 
 for i in range(3):
-    pcm1 = ax[0,i].scatter(X1,X2,c=dTdz[:,0,i],cmap='jet')
+    pcm1 = ax[0,i].scatter(X1,X2,c=dTdz_inversion[:,0,i],cmap='jet')
     ax[0,i].axis('square')
+    ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdz[i])
     fig.colorbar(pcm1,ax=ax[0,i])
     
-    pcm1 = ax[1,i].scatter(X1,X2,c=dTdz[:,1,i],cmap='jet')
+    pcm1 = ax[1,i].scatter(X1,X2,c=dTdz_inversion[:,1,i],cmap='jet')
     ax[1,i].axis('square')
+    ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdz[i+3])
     fig.colorbar(pcm1,ax=ax[1,i])
     
-
+"test de dT*_dz_inversion * dT_dx = Identité"
+i = 23
+print(np.dot(dTdz_inversion[i,:,:],dTdx[:,:,i]))
+#test correct
 #%% test du calcul de gradient de l'inverse
 
 geometry = [np.pi,np.pi,30,30,0,0]
@@ -549,17 +655,6 @@ for i in range(3):
     ax[1,i].axis('square')
     fig.colorbar(pcm1,ax=ax[1,i])
 
-#%% taille optimale des surrogate models
-res = []
-for nx in range(2,10):
-    print(nx)
-    Coeff1 = coeffs(grid,Z,0,nx,nx)
-    # Coeff2 = coeffs(grid,Z,1,nx,nx)
-    grad1 = gradient(grid,Z,nx,nx,Coeff1)
-    # grad2 = gradient(grid,Z,nx,ny,Coeff2)
-    
-    res.append(np.linalg.norm(dZ1-grad1))
-
 #%% raffinement sur T1* et sur T2*
 grid1 = iterate_grid(grid,Z,0)
 # grid1 = iterate_grid(grid1,0)
@@ -589,20 +684,12 @@ ax2.axis('square')
 fig.colorbar(pcm2,ax=ax2,shrink=0.6)
 
 
-#%%
-
-X,Y = np.linspace(0,10,10),np.linspace(20,30,10)
-Test = np.stack((X,Y),-1)
-
-for x,y in Test:
-    print('indice :',np.where(X==x)[0][0])
-
 #%% apprenttissage de T* avec grilles raffinées
 
 # dataset de test
 
 N_test = 100
-x_test = np.linspace(-1,1,N_test)
+x_test = np.linspace(-2,2,N_test)
 X_test,Y_test = np.meshgrid(x_test,x_test)
 X_test,Y_test = X_test.flatten(),Y_test.flatten()
 x_true = np.stack((X_test,Y_test),-1)
@@ -610,7 +697,7 @@ x_true = np.stack((X_test,Y_test),-1)
 Z1_test,Z2_test,Z3_test = T_direct(X_test,Y_test)
 predict_Z = np.stack((Z1_test,Z2_test,Z3_test),-1)
 
-x = np.linspace(-1,1,N_test)
+x = np.linspace(-2,2,N_test)
 y = np.zeros(N_test)
 z1,z2,z3 = T_direct(x,y)
 Traj = np.stack((z1,z2,z3),-1)
@@ -621,7 +708,7 @@ Z1,Z2,Z3 = T_direct(X1,Y1)
 data_in = np.stack((Z1,Z2,Z3),-1)
 data_out = X1
 
-mlp_reg1 = MLPRegressor(
+mlp_reg1 = MLPRegressor(hidden_layer_sizes=(10,),
                        max_iter = 200,activation = 'relu',
                        solver = 'adam')
 
@@ -633,7 +720,7 @@ Z1,Z2,Z3 = T_direct(X2,Y2)
 data_in = np.stack((Z1,Z2,Z3),-1)
 data_out = Y2
 
-mlp_reg2 = MLPRegressor(
+mlp_reg2 = MLPRegressor(hidden_layer_sizes=(10,),
                        max_iter = 200,activation = 'relu',
                        solver = 'adam')
 
@@ -699,7 +786,7 @@ Z1,Z2,Z3 = T_direct(X1,Y1)
 data_in = np.stack((Z1,Z2,Z3),-1)
 data_out = X1
 
-mlp_reg_uni1 = MLPRegressor(
+mlp_reg_uni1 = MLPRegressor(hidden_layer_sizes=(10,),
                        max_iter = 200,activation = 'relu',
                        solver = 'adam')
 
@@ -711,7 +798,7 @@ Z1,Z2,Z3 = T_direct(X2,Y2)
 data_in = np.stack((Z1,Z2,Z3),-1)
 data_out = Y2
 
-mlp_reg_uni2 = MLPRegressor(
+mlp_reg_uni2 = MLPRegressor(hidden_layer_sizes=(10,),
                        max_iter = 200,activation = 'relu',
                        solver = 'adam')
 
