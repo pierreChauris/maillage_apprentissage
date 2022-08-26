@@ -222,7 +222,7 @@ leg = ['x1','y1','s1','x2','y2','s2']
 
 thetaf_uni,res_uni,cost_uni = estimation(X_uni,Y_uni,Z_uni,theta0,alpha,Nmax,epsilon)
 
-_,(ax1,ax2,ax3) = plt.subplots(1,3)
+_,(ax1,ax2,ax3) = plt.subplots(1,3,figsize=(17,4))
 
 ax1.scatter(X_uni,Y_uni,c=Z_uni,cmap='jet',s=5)
 ax1.axis('square')
@@ -264,7 +264,7 @@ for _ in range(2):
 
 thetaf_nu,res_nu,cost_nu = estimation(X_nu,Y_nu,Z_nu,theta0,alpha,Nmax,epsilon)
 
-_,(ax1,ax2,ax3) = plt.subplots(1,3)
+_,(ax1,ax2,ax3) = plt.subplots(1,3,figsize=(17,4))
 
 ax1.scatter(X_nu,Y_nu,c=Z_nu,cmap='jet',s=5)
 ax1.axis('square')

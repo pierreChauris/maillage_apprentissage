@@ -53,6 +53,7 @@ def dT_dz2(x1,x2):
     dTdz = np.array(dTdz)
     return dTdz
 
+
 #%% code de raffinement modifié
 
 class Cell:
@@ -656,13 +657,17 @@ for i in range(3):
     fig.colorbar(pcm1,ax=ax[1,i])
 
 #%% raffinement sur T1* et sur T2*
+geometry = [2,2,50,50,-1,-1]
+grid = init_grid(geometry)
+X,Y = coordinate(grid)
+z1,z2,z3 = T_direct(X,Y)
+Z = np.stack((z1,z2,z3),-1)
+
 grid1 = iterate_grid(grid,Z,0)
-# grid1 = iterate_grid(grid1,0)
-# grid1 = iterate_grid(grid1,0)
 X1,Y1 = coordinate(grid1)
 
+
 grid2 = iterate_grid(grid,Z,1)
-# grid2 = iterate_grid(grid2,1)
 X2,Y2 = coordinate(grid2)
 
 
@@ -697,19 +702,14 @@ x_true = np.stack((X_test,Y_test),-1)
 Z1_test,Z2_test,Z3_test = T_direct(X_test,Y_test)
 predict_Z = np.stack((Z1_test,Z2_test,Z3_test),-1)
 
-x = np.linspace(-2,2,N_test)
-y = np.zeros(N_test)
-z1,z2,z3 = T_direct(x,y)
-Traj = np.stack((z1,z2,z3),-1)
-
 # apprentissage de T1* sur grid1
 
 Z1,Z2,Z3 = T_direct(X1,Y1)
 data_in = np.stack((Z1,Z2,Z3),-1)
 data_out = X1
 
-mlp_reg1 = MLPRegressor(hidden_layer_sizes=(10,),
-                       max_iter = 200,activation = 'relu',
+mlp_reg1 = MLPRegressor(hidden_layer_sizes=(50,50),
+                       max_iter = 2000,activation = 'relu',
                        solver = 'adam')
 
 mlp_reg1.fit(data_in,data_out)
@@ -720,8 +720,8 @@ Z1,Z2,Z3 = T_direct(X2,Y2)
 data_in = np.stack((Z1,Z2,Z3),-1)
 data_out = Y2
 
-mlp_reg2 = MLPRegressor(hidden_layer_sizes=(10,),
-                       max_iter = 200,activation = 'relu',
+mlp_reg2 = MLPRegressor(hidden_layer_sizes=(50,50),
+                       max_iter = 2000,activation = 'relu',
                        solver = 'adam')
 
 mlp_reg2.fit(data_in,data_out)
@@ -730,10 +730,9 @@ mlp_reg2.fit(data_in,data_out)
 
 x_pred1 = mlp_reg1.predict(predict_Z)
 x_pred2 = mlp_reg2.predict(predict_Z)
-traj_pred1 = mlp_reg1.predict(Traj)
-traj_pred2 = mlp_reg2.predict(Traj)
 
-erreur = np.sqrt((x_pred1 - x_true[:,0])**2+(x_pred2 - x_true[:,1])**2)
+erreur1 = np.sqrt((x_pred1 - x_true[:,0])**2)
+erreur2 = np.sqrt((x_pred2 - x_true[:,1])**2)
 
 u1 = ((x_true[:,0] - x_pred1)** 2).sum()
 v1 = ((x_true[:,0] - x_true[:,0].mean()) ** 2).sum()
@@ -744,12 +743,16 @@ score2 = 1-(u2/v2)
 
 print('scores raffines :',score1,score2)
 
-plt.figure()
-plt.scatter(X_test,Y_test,c=erreur,cmap='jet')
-plt.axis('square')
-plt.title('distance entre x et x estimé')
-plt.colorbar()
+fig,(ax1,ax2) = plt.subplots(1,2,figsize=(10,5))
+p1 = ax1.scatter(X_test,Y_test,c=erreur1,cmap='jet')
+ax1.axis('square')
+ax1.set_title('distance entre x1 et x1 estimé')
+fig.colorbar(p1,ax=ax1,shrink=0.7)
 
+p2 = ax2.scatter(X_test,Y_test,c=erreur2,cmap='jet')
+ax2.axis('square')
+ax2.set_title('distance entre x2 et x2 estimé')
+fig.colorbar(p2,ax=ax2,shrink=0.7)
 
 #%% données d'apprentissage uniformes équivalentes
 
@@ -786,8 +789,8 @@ Z1,Z2,Z3 = T_direct(X1,Y1)
 data_in = np.stack((Z1,Z2,Z3),-1)
 data_out = X1
 
-mlp_reg_uni1 = MLPRegressor(hidden_layer_sizes=(10,),
-                       max_iter = 200,activation = 'relu',
+mlp_reg_uni1 = MLPRegressor(hidden_layer_sizes=(50,50),
+                       max_iter = 2000,activation = 'relu',
                        solver = 'adam')
 
 mlp_reg_uni1.fit(data_in,data_out)
@@ -798,8 +801,8 @@ Z1,Z2,Z3 = T_direct(X2,Y2)
 data_in = np.stack((Z1,Z2,Z3),-1)
 data_out = Y2
 
-mlp_reg_uni2 = MLPRegressor(hidden_layer_sizes=(10,),
-                       max_iter = 200,activation = 'relu',
+mlp_reg_uni2 = MLPRegressor(hidden_layer_sizes=(50,50),
+                       max_iter = 2000,activation = 'relu',
                        solver = 'adam')
 
 mlp_reg_uni2.fit(data_in,data_out)
@@ -809,8 +812,9 @@ mlp_reg_uni2.fit(data_in,data_out)
 x_pred1 = mlp_reg_uni1.predict(predict_Z)
 x_pred2 = mlp_reg_uni2.predict(predict_Z)
 
-erreur1 = np.abs(x_pred1 - x_true[:,0])
-erreur2 = np.abs(x_pred2 - x_true[:,1])
+erreur1 = np.sqrt((x_pred1 - x_true[:,0])**2)
+erreur2 = np.sqrt((x_pred2 - x_true[:,1])**2)
+
 
 u1 = ((x_true[:,0] - x_pred1)** 2).sum()
 v1 = ((x_true[:,0] - x_true[:,0].mean()) ** 2).sum()
@@ -820,15 +824,17 @@ v2 = ((x_true[:,1] - x_true[:,1].mean()) ** 2).sum()
 score2 = 1-(u2/v2)
 
 print('scores uniformes :',score1,score2)
-fig,(ax1,ax2) = plt.subplots(1,2)
 
-pcm1 = ax1.scatter(X_test,Y_test,c=erreur1,cmap='jet')
+fig,(ax1,ax2) = plt.subplots(1,2,figsize=(10,5))
+p1 = ax1.scatter(X_test,Y_test,c=erreur1,cmap='jet')
 ax1.axis('square')
-fig.colorbar(pcm1,ax=ax1,shrink=0.6)
+ax1.set_title('distance entre x1 et x1 estimé')
+fig.colorbar(p1,ax=ax1,shrink=0.7)
 
-pcm2 = ax2.scatter(X_test,Y_test,c=erreur2,cmap='jet')
+p2 = ax2.scatter(X_test,Y_test,c=erreur2,cmap='jet')
 ax2.axis('square')
-fig.colorbar(pcm2,ax=ax2,shrink=0.62)
+ax2.set_title('distance entre x2 et x2 estimé')
+fig.colorbar(p2,ax=ax2,shrink=0.7)
 
 
 #%% résultat exact 
@@ -840,4 +846,15 @@ ax1.axis('square')
 ax2.scatter(X_test,Y_test,c=x_true[:,1],cmap='jet')
 ax2.axis('square')
 
-
+#%%
+geometry = [2,2,20,20,-1,-1]
+grid = init_grid(geometry)
+for i in range(3):
+    X,Y = coordinate(grid)
+    z1,z2,z3 = T_direct(X,Y)
+    Z = np.stack((z1,z2,z3),-1)
+    grid = iterate_grid(grid,Z,0)
+    plt.scatter(X,Y,s=1)
+    plt.axis('square')
+    plt.show()
+    

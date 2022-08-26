@@ -107,23 +107,20 @@ def plot_cell(cell):
     plt.hlines(y = y+py/2, xmin = x-px/2, xmax = x+px/2,linewidth=1)
     
 
-def crit_sequence(grid,Z,critere):
+def crit_sequence(grid,Z,axe):
     "calcule la liste des critères sur la grille avec le citère donné"
-    sequence = []
-    for cell in grid:
-        crit = critere(grid,Z)
-        sequence.append(crit)
-    return np.array(sequence)
+    dTdx = dTdx_surrogate(grid,Z,axe)
+    dTdx1,dTdx2 =  dTdx[:,0],dTdx[:,1]
+    return np.sqrt(dTdx1**2+dTdx2**2)
 
-
-def alpha_sequence(grid,Z,critere):
-    sequence = crit_sequence(grid, Z, critere)
+def alpha_sequence(grid,Z,axe):
+    sequence = crit_sequence(grid,Z,axe)
     return np.linspace(0,sequence.max(),len(grid))
 
 
-def distrib_sequence(grid,Z,critere):
-    alpha = alpha_sequence(grid,Z,critere)
-    crit = crit_sequence(grid,Z,critere)
+def distrib_sequence(grid,Z,axe):
+    alpha = alpha_sequence(grid,Z,axe)
+    crit = crit_sequence(grid,Z,axe)
     distribution = []
     for j in range(alpha.size):
         dj = np.count_nonzero(crit>alpha[j])
@@ -131,9 +128,9 @@ def distrib_sequence(grid,Z,critere):
     return np.array(distribution)
 
 
-def auto_threshold(grid,Z,critere):
-    alpha = alpha_sequence(grid,Z,critere)
-    distribution = distrib_sequence(grid,Z,critere)
+def auto_threshold(grid,Z,axe):
+    alpha = alpha_sequence(grid,Z,axe)
+    distribution = distrib_sequence(grid,Z,axe)
     f = alpha*distribution
     #maximum global
     fmax = np.max(f)
@@ -143,9 +140,9 @@ def auto_threshold(grid,Z,critere):
     alphamax = alpha[idmax]
     return alphamax
 
-def iterate_grid(grid,Z,critere):
-    alpha = auto_threshold(grid,Z,critere)
-    crit = crit_sequence(grid,Z,critere)
+def iterate_grid(grid,Z,axe):
+    alpha = auto_threshold(grid,Z,axe)
+    crit = crit_sequence(grid,Z,axe)
     new_grid = grid.copy()
     for cell in grid:
         k = grid.index(cell)        
@@ -173,10 +170,10 @@ def split_grid(grid,Z,nx,ny,ix,iy):
     Ay = (iy*Ly/ny+Oy)*np.ones(Y.size)
     By = ((iy+1)*Ly/ny+Oy)*np.ones(Y.size)
     
-    mask = (np.less(Ax,X) & np.less(X,Bx)) & (np.less(Ay,Y) & np.less(Y,By))
-    mask = ~mask
-    subX = np.ma.masked_array(X,mask).compressed()
-    subY = np.ma.masked_array(Y,mask).compressed()
+    mask  = (np.less(Ax,X) & np.less(X,Bx)) & (np.less(Ay,Y) & np.less(Y,By))
+    mask  = ~mask
+    subX  = np.ma.masked_array(X,mask).compressed()
+    subY  = np.ma.masked_array(Y,mask).compressed()
     subZ1 = np.ma.masked_array(Z1,mask).compressed()
     subZ2 = np.ma.masked_array(Z2,mask).compressed()
     subZ3 = np.ma.masked_array(Z3,mask).compressed()
@@ -275,7 +272,7 @@ def dTdz_inversion(dTdx):
 #%% Calcul de dTdx
 
 def T_direct(X,Y):
-    s = X**2 + Y**2 + 0.1
+    s = X**2 + Y**2 + 0.01
     return s,X/s,Y/s
 
 geometry = [2,2,100,100,-1,-1]
@@ -288,7 +285,7 @@ dT1dx = dTdx_surrogate(grid,Z,0)
 dT2dx = dTdx_surrogate(grid,Z,1)
 dT3dx = dTdx_surrogate(grid,Z,2)
 
-dTdx = np.stack((dT1dx,dT2dx,dT3dx),-1)
+dTdx = np.stack((dT1dx,dT2dx,dT3dx),-2)
 
 titres_dTdx = [r'$\frac{dT_1}{dx_1}(x)$',r'$\frac{dT_1}{dx_2}(x)$',r'$\frac{dT_2}{dx_1}(x)$',
           r'$\frac{dT_2}{dx_2}(x)$',r'$\frac{dT_3}{dx_1}(x)$',r'$\frac{dT_3}{dx_2}(x)$']
@@ -345,7 +342,7 @@ for i in range(3):
 dT1dz = dTdz_surrogate(grid,Z,0)
 dT2dz = dTdz_surrogate(grid,Z,1)
 
-dTdz = np.stack((dT1dz,dT2dz),-1)
+dTdz = np.stack((dT1dz,dT2dz),-2)
 
 fig,ax = plt.subplots(2,3,figsize=(20,12))
 
@@ -368,7 +365,7 @@ for i in range(3):
 
 crit = []
 for i in range(len(grid)):
-    crit.append(np.dot(dTdx[0,:,:],dTdz[0,:,:])-np.eye(2))
+    crit.append(np.dot(dTdz[i,:,:],dTdx[i,:,:])-np.eye(2))
 crit = np.array(crit)
 
 fig,ax = plt.subplots(2,2,figsize=(20,15))
@@ -391,5 +388,144 @@ for i in range(2):
     # ax[2,i].set_xlabel(r'$x1$')
     # ax[2,i].set_ylabel(r'$x2$')
     # fig.colorbar(pcm1,ax=ax[2,i])
+
+#%% test du raffinement
+
+geometry = [2,2,20,20,-1,-1]
+grid1 = init_grid(geometry)
+X1,X2 = coordinate(grid1)
+Z1,Z2,Z3 = T_direct(X1,X2)
+Z = np.stack((Z1,Z2,Z3),-1)
+
+grid2 = iterate_grid(grid1,Z,0)
+X1,X2 = coordinate(grid2)
+Z1,Z2,Z3 = T_direct(X1,X2)
+Z = np.stack((Z1,Z2,Z3),-1)
+
+fig,ax = plt.subplots(1,3,figsize=(17,4))
+for i in range(3):
+    pcm = ax[i].scatter(X1,X2,c=Z[:,i],cmap='jet',s=5)
+    ax[i].axis('square')
+    ax[i].set_xlabel(r'$x1$')
+    ax[i].set_ylabel(r'$x2$')
+    fig.colorbar(pcm,ax=ax[i])
+
+#%% données de KKL - gradient du réseau
+
+import pandas as pd
+# mesh
+mesh = pd.read_excel('mesh.xlsx').to_numpy()
+mesh = mesh[:,1:6]
+X1,X2 = mesh[:,0],mesh[:,1]
+Z = mesh[:,2:5]
+
+fig,ax = plt.subplots(1,3,figsize=(17,4))
+for i in range(3):
+    pcm = ax[i].scatter(X1,X2,c=Z[:,i],cmap='jet')
+    plt.axis('square')
+    fig.colorbar(pcm,ax=ax[i])
+
+# dTdx
+dTdx = pd.read_excel('dTdx.xlsx').to_numpy()
+dTdx = dTdx[:,1:7]
+
+fig,ax = plt.subplots(3,2,figsize=(12,20))
+for i in range(2):
+    pc1 = ax[0,i].scatter(X1,X2,c=dTdx[:,i],cmap='jet')
+    ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdx[i])
+    fig.colorbar(pc1,ax=ax[0,i])
     
+    pc2 = ax[1,i].scatter(X1,X2,c=dTdx[:,i+2],cmap='jet')
+    ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdx[i+2])
+    fig.colorbar(pc2,ax=ax[1,i])
     
+    pc3 = ax[2,i].scatter(X1,X2,c=dTdx[:,i+4],cmap='jet')
+    ax[2,i].axis('square')
+    ax[2,i].set_xlabel(r'$x1$')
+    ax[2,i].set_ylabel(r'$x2$')
+    ax[2,i].set_title(titres_dTdx[i+4])
+    fig.colorbar(pc3,ax=ax[2,i])
+
+# dT*dz
+dTdz = pd.read_excel('dTstar_dz.xlsx').to_numpy()
+dTdz = dTdz[:,1:7]
+
+fig,ax = plt.subplots(2,3,figsize=(20,12))
+
+for i in range(3):
+    pcm1 = ax[0,i].scatter(X1,X2,c=dTdz[:,i],cmap='jet')
+    ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdz[i])
+    fig.colorbar(pcm1,ax=ax[0,i])
+    
+    pcm1 = ax[1,i].scatter(X1,X2,c=dTdz[:,i+3],cmap='jet')
+    ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdz[i+3])
+    fig.colorbar(pcm1,ax=ax[1,i])
+    
+#%% comparaison avec le calcul par surrogate
+
+geometry = [2,2,100,100,-1,-1]
+grid = init_grid(geometry)
+X1,X2 = coordinate(grid)
+
+dT1dx = dTdx_surrogate(grid,Z,0)
+dT2dx = dTdx_surrogate(grid,Z,1)
+dT3dx = dTdx_surrogate(grid,Z,2)
+
+dTdx = np.stack((dT1dx,dT2dx,dT3dx),-1)
+
+fig,ax = plt.subplots(3,2,figsize=(12,20))
+for i in range(2):
+    pc1 = ax[0,i].scatter(X1,X2,c=dT1dx[:,i],cmap='jet')
+    ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdx[i])
+    fig.colorbar(pc1,ax=ax[0,i])
+    
+    pc2 = ax[1,i].scatter(X1,X2,c=dT2dx[:,i],cmap='jet')
+    ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdx[i+2])
+    fig.colorbar(pc2,ax=ax[1,i])
+    
+    pc3 = ax[2,i].scatter(X1,X2,c=dT3dx[:,i],cmap='jet')
+    ax[2,i].axis('square')
+    ax[2,i].set_xlabel(r'$x1$')
+    ax[2,i].set_ylabel(r'$x2$')
+    ax[2,i].set_title(titres_dTdx[i+4])
+    fig.colorbar(pc3,ax=ax[2,i])
+
+dT1dz = dTdz_surrogate(grid,Z,0)
+dT2dz = dTdz_surrogate(grid,Z,1)
+
+dTdz = np.stack((dT1dz,dT2dz),-1)
+
+fig,ax = plt.subplots(2,3,figsize=(20,12))
+
+for i in range(3):
+    pcm1 = ax[0,i].scatter(X1,X2,c=dT1dz[:,i],cmap='jet')
+    ax[0,i].axis('square')
+    ax[0,i].set_xlabel(r'$x1$')
+    ax[0,i].set_ylabel(r'$x2$')
+    ax[0,i].set_title(titres_dTdz[i])
+    fig.colorbar(pcm1,ax=ax[0,i])
+    
+    pcm1 = ax[1,i].scatter(X1,X2,c=dT2dz[:,i],cmap='jet')
+    ax[1,i].axis('square')
+    ax[1,i].set_xlabel(r'$x1$')
+    ax[1,i].set_ylabel(r'$x2$')
+    ax[1,i].set_title(titres_dTdz[i+3])
+    fig.colorbar(pcm1,ax=ax[1,i])

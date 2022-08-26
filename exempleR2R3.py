@@ -209,10 +209,6 @@ plt.scatter(Xt[:,0],Xt[:,1],c=np.log10(erreur),cmap='jet')
 plt.axis('square')
 plt.colorbar()
 
-plt.plot(x,y,c='green',linestyle='-')
-plt.plot(traj_pred_nu[:,0],traj_pred_nu[:,1],c='r',linestyle='-')
-plt.plot(traj_pred_u[:,0],traj_pred_u[:,1],c='b',linestyle='-')
-plt.axis('square')
 
 #%% apprentissage en parallèle de T sur chaque dimension
 Prediction = []

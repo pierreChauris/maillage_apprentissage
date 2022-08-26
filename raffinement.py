@@ -183,24 +183,24 @@ def iterate_grid(grid,Z,smooth):
         
             
         # raffinement uniquement sur x 
-        # if max(alpha,alphax,alphay) == alphax:
-        if gx > alphax and raffinement == 0:
-            C00,C01 = cell.split_x()
-            if cell in new_grid:
-                new_grid.remove(cell)
-            new_grid.insert(k,C01)
-            new_grid.insert(k,C00)
-            raffinement += 1
+        if max(alpha,alphax,alphay) == alphax:
+            if gx > alphax and raffinement == 0:
+                C00,C01 = cell.split_x()
+                if cell in new_grid:
+                    new_grid.remove(cell)
+                new_grid.insert(k,C01)
+                new_grid.insert(k,C00)
+                raffinement += 1
             
         # reffinement uniquement sur y 
-        # if max(alpha,alphax,alphay) == alphay:
-        if gy > alphay and raffinement == 0:
-            C00,C01 = cell.split_y()
-            if cell in new_grid:
-                new_grid.remove(cell)
-            new_grid.insert(k,C01)
-            new_grid.insert(k,C00)
-            raffinement += 1
+        if max(alpha,alphax,alphay) == alphay:
+            if gy > alphay and raffinement == 0:
+                C00,C01 = cell.split_y()
+                if cell in new_grid:
+                    new_grid.remove(cell)
+                new_grid.insert(k,C01)
+                new_grid.insert(k,C00)
+                raffinement += 1
         
         # raffinement iso
         if max(alpha,alphax,alphay) == alpha:
